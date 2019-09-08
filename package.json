@@ -1,0 +1,131 @@
+{
+	"name": "dart-data-class-generator",
+	"displayName": "Dart Data Class Generator",
+	"description": "Create dart data classes easily, fast and without writing boilerplate.",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.37.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onCommand:dart_data_class.generate.from_props",
+		"onCommand:dart_data_class.generate.from_json"
+	],
+	"main": "./src/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"title": "Dart Data Class Generator: Generate from class properties",
+				"command": "dart_data_class.generate.from_props"
+			},
+			{
+				"title": "Dart Data Class Generator: Generate from JSON",
+				"command": "dart_data_class.generate.from_json"
+			}
+		],
+		"configuration": [
+			{
+				"title": "Dart Data Class Generator configuration",
+				"properties": {
+					"dart_data_class.generate.constructor": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate a constructor for a data class."
+					},
+					"dart_data_class.generate.copyWidth": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the copyWidth function for a data class."
+					},
+					"dart_data_class.generate.toMap": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the toMap function for a data class."
+					},
+					"dart_data_class.generate.fromMap": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the fromMap function for a data class."
+					},
+					"dart_data_class.generate.toJson": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the toJson function for a data class."
+					},
+					"dart_data_class.generate.fromJson": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the fromJson function for a data class."
+					},
+					"dart_data_class.generate.toString": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the toString function for a data class."
+					},
+					"dart_data_class.generate.equality": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate a value equality function for a data class."
+					},
+					"dart_data_class.generate.hashCode": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "Whether to generate the hashCode function for a data class."
+					}
+				}
+			}
+		]
+	},
+	"scripts": {
+		"test": "node ./test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/glob": "^7.1.1",
+		"@types/mocha": "^5.2.6",
+		"@types/node": "^10.12.21",
+		"@types/vscode": "^1.37.0",
+		"eslint": "^5.13.0",
+		"glob": "^7.1.4",
+		"mocha": "^6.1.4",
+		"typescript": "^3.3.1",
+		"vscode-test": "^1.0.2"
+	}
+}

@@ -29,7 +29,7 @@
 			{
 				"title": "Dart Data Class Generator configuration",
 				"properties": {
-					"dart_data_class.generate.constructor": {
+					"dart_data_class_generator.generate.constructor": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -38,7 +38,7 @@
 						"default": true,
 						"description": "Whether to generate a constructor for a data class."
 					},
-					"dart_data_class.generate.copyWidth": {
+					"dart_data_class_generator.generate.copyWidth": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -47,7 +47,7 @@
 						"default": true,
 						"description": "Whether to generate the copyWidth function for a data class."
 					},
-					"dart_data_class.generate.toMap": {
+					"dart_data_class_generator.generate.toMap": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -56,7 +56,7 @@
 						"default": true,
 						"description": "Whether to generate the toMap function for a data class."
 					},
-					"dart_data_class.generate.fromMap": {
+					"dart_data_class_generator.generate.fromMap": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -65,7 +65,7 @@
 						"default": true,
 						"description": "Whether to generate the fromMap function for a data class."
 					},
-					"dart_data_class.generate.toJson": {
+					"dart_data_class_generator.generate.toJson": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -74,7 +74,7 @@
 						"default": true,
 						"description": "Whether to generate the toJson function for a data class."
 					},
-					"dart_data_class.generate.fromJson": {
+					"dart_data_class_generator.generate.fromJson": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -83,7 +83,7 @@
 						"default": true,
 						"description": "Whether to generate the fromJson function for a data class."
 					},
-					"dart_data_class.generate.toString": {
+					"dart_data_class_generator.generate.toString": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -92,7 +92,7 @@
 						"default": true,
 						"description": "Whether to generate the toString function for a data class."
 					},
-					"dart_data_class.generate.equality": {
+					"dart_data_class_generator.generate.equality": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -101,7 +101,7 @@
 						"default": true,
 						"description": "Whether to generate a value equality function for a data class."
 					},
-					"dart_data_class.generate.hashCode": {
+					"dart_data_class_generator.generate.hashCode": {
 						"type": "boolean",
 						"enum": [
 							true,

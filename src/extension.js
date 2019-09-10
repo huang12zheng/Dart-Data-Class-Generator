@@ -25,7 +25,6 @@ async function generateJsonDataClass() {
         });
 
         if (name == null || name.length == 0) {
-            showError('Name must be specified!');
             return;
         }
 
@@ -83,7 +82,7 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
             for (let clazz of clazzes) {
                 if (!fromJSON && clazz.isValid && clazz.toReplace.length > 0) {
                     const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                        placeHolder: `Do you want to override changes in class ${clazz.name}? This may leed to some breaking changes.`,
+                        placeHolder: `Do you want to override changes in class ${clazz.name}? This feature is still in beta!`,
                         canPickMany: false
                     });
 
@@ -106,7 +105,7 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
                     if (clazz.toInsert.length == 0 && clazz.toReplace.length == 0 && !clazz.constrDifferent) {
                         showInfo(`No changes detected for class ${clazz.name}`);
                     } else {
-                        clazz.isValid ? clazz.replace(editor, i) : issues.push(clazz);
+                        clazz.isValid ? clazz.replace(editor, i, fromJSON) : issues.push(clazz);
                     }
                 }
             });
@@ -155,33 +154,29 @@ async function showClassChooser(clazzez) {
 }
 
 class DartClass {
-	/**
-	 * @param {String} name
-	 * @param {String} extend
-	 * @param {String} constr
-	 * @param {ClassProperty[]} properties
-	 * @param {number} startsAtLine
-	 * @param {number} endsAtLine
-	 * @param {number} constrStartsAtLine
-	 * @param {number} constrEndsAtLine
-	 * @param {String} classContent
-	 * @param {String} imports
-	 */
-    constructor(name = null, extend = null, constr = null, properties = [], startsAtLine = -1, endsAtLine = -1, constrStartsAtLine = -1, constrEndsAtLine = -1, classContent = '', toInsert = '', imports = '') {
-        this.name = name;
-        this.extend = extend;
-        this.constr = constr;
-        this.properties = properties;
-        this.startsAtLine = startsAtLine;
-        this.endsAtLine = endsAtLine;
-        this.constrStartsAtLine = constrStartsAtLine;
-        this.constrEndsAtLine = constrEndsAtLine;
+    constructor() {
+        /** @type {string} */
+        this.name = null;
+        /** @type {string} */
+        this.extend = null;
+        /** @type {string} */
+        this.constr = null;
+        /** @type {ClassProperty[]} */
+        this.properties = [];
+        /** @type {number} */
+        this.startsAtLine = null;
+        /** @type {number} */
+        this.endsAtLine = null;
+        /** @type {number} */
+        this.constrStartsAtLine = null;
+        /** @type {number} */
+        this.constrEndsAtLine = null;
         this.constrDifferent = false;
-        this.classContent = classContent;
-        this.toInsert = toInsert;
+        this.classContent = '';
+        this.toInsert = '';
         /** @type {ClassPart[]} */
         this.toReplace = [];
-        this.imports = imports;
+        this.imports = '';
     }
 
     get propsEndAtLine() {
@@ -197,19 +192,23 @@ class DartClass {
     }
 
     get classDetected() {
-        return this.startsAtLine != -1;
+        return this.startsAtLine != null;
     }
 
     get hasConstructor() {
-        return this.constrStartsAtLine != -1 && this.constrEndsAtLine != -1;
+        return this.constrStartsAtLine != null && this.constrEndsAtLine != null && this.constr != null;
     }
 
     get hasEnding() {
-        return this.endsAtLine != -1;
+        return this.endsAtLine != null;
     }
 
     get hasProperties() {
         return this.properties.length > 0;
+    }
+
+    get fewProps() {
+        return this.properties.length <= 3;
     }
 
     get isValid() {
@@ -275,15 +274,16 @@ class DartClass {
 	 * @param {vscode.TextEditorEdit} editor
 	 * @param {number} [index]
 	 */
-    replace(editor, index) {
+    replace(editor, index, fromJSON = false) {
         editor.replace(
             new vscode.Range(
                 new vscode.Position(this.startsAtLine - 1, 0),
                 new vscode.Position(this.endsAtLine, 1)
-            ), this.getClassReplacement(false));
+            ), this.getClassReplacement(false) + (fromJSON ? '\n' : ''));
 
         // If imports need to be inserted, do it at the top of the file.
         if (this.hasImports && index == 0) {
+            if (!fromJSON && getDocumentText().includes('dart:')) this.imports = removeEnd(this.imports, '\n');
             editor.insert(new vscode.Position(0, 0), this.imports);
         }
     }
@@ -420,9 +420,15 @@ class DataClassGenerator {
             curlies += count(line, '{');
             curlies -= count(line, '}');
 
-            if (curlies == 2 && part.startsAt == null && line.trimLeft().startsWith(p.trimLeft())) {
-                part.startsAt = lineNum;
-                part.current = line + '\n';
+            if (part.startsAt == null && line.trimLeft().startsWith(p.trimLeft())) {
+                let singleLine = line.includes('=>');
+                if (curlies == 2 || singleLine) {
+                    part.startsAt = lineNum;
+                    part.current = line + '\n';
+                    if (singleLine) {
+                        part.endsAt = lineNum;
+                    }
+                }
             } else if (part.startsAt != null && part.endsAt == null && curlies >= 2) {
                 part.current += line + '\n';
             } else if (part.startsAt != null && part.endsAt == null && curlies == 1) {
@@ -434,11 +440,36 @@ class DataClassGenerator {
         return part.isValid ? part : null;
     }
 
+    /**
+     * If class already exists and has a constructor with the parameter, reuse that parameter.
+     * E.g. when the dev changed the parameter from this.x to this.x = y the generator inserts
+     * this.x = y. This way the generator can preserve changes made in the constructor.
+     * 
+     * @param {string} p
+	 * @param {DartClass} clazz
+     */
+    findConstrParameter(p, clazz) {
+        if (clazz.hasConstructor) {
+            const lines = clazz.constr.split('\n');
+            for (let l of lines) {
+                if (l.includes(p) && !l.includes('{')) {
+                    return l.trim();
+                }
+            }
+        }
+        return null;
+    }
+
 	/**
 	 * @param {DartClass} clazz
 	 */
     insertConstructor(clazz) {
-        let constr = clazz.name + '({\n';
+        let constr = '';
+        if (clazz.constr != null && clazz.constr.trimLeft().startsWith('const', 0)) {
+            constr += 'const ';
+        }
+
+        constr += clazz.name + '({\n';
 
         if (clazz.isWidget) {
             constr += '  Key key,\n'
@@ -447,14 +478,34 @@ class DataClassGenerator {
         }
 
         for (let p of clazz.properties) {
-            constr += `  this.${p.name},\n`;
+            const parameter = `this.${p.name}`
+            const fp = this.findConstrParameter(parameter, clazz);
+            constr += `  ${fp == null ? parameter + ',' : fp}\n`;
         }
-        constr += '})' + (clazz.isWidget ? ' : super(key: key);' : ';');
+
+        const stdConstrEnd = () => {
+            constr += '})' + (clazz.isWidget ? ' : super(key: key);' : ';');
+        }
+
+        if (clazz.constr != null) {
+            let c = null;
+            if (clazz.constr.includes(':')) c = ':';
+            else if (clazz.constr.trimRight().endsWith('{')) c = '{';
+
+            if (c != null) {
+                let ending = clazz.constr.substring(clazz.constr.lastIndexOf(c), clazz.constr.length);
+                constr += `}) ${ending}`;
+            } else {
+                stdConstrEnd();
+            }
+        } else {
+            stdConstrEnd();
+        }
 
         if (clazz.hasConstructor) {
             clazz.constrDifferent = !areStrictEqual(clazz.constr, constr);
             if (clazz.constrDifferent) {
-                constr = indent(constr);
+                constr = removeEnd(indent(constr), '\n');
                 this.replace(new ClassPart('constructor', clazz.constrStartsAtLine, clazz.constrEndsAtLine, clazz.constr, constr), clazz);
             }
         } else {
@@ -567,18 +618,19 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertToString(clazz) {
+        let short = clazz.fewProps;
         let props = clazz.properties;
         let method = '@override\n';
-        method += 'String toString() {\n';
-        method += "  return '" + clazz.name;
+        method += `String toString() ${!short ? '{\n' : '=>'}`;
+        method += `${!short ? '  return' : ''} '` + clazz.name;
         for (let p of props) {
             method += ' ' + p.name + ': $' + p.name + ',';
             if (p.name == props[props.length - 1].name) {
                 method = removeEnd(method, ',');
-                method += "';\n";
+                method += "';" + (short ? '' : '\n');
             }
         }
-        method += '}';
+        method += !short ? '}' : '';
 
         this.appendOrReplace('toString', method, 'String toString()', clazz);
     }
@@ -614,7 +666,7 @@ class DataClassGenerator {
         method += 'int get hashCode {\n';
         method += '  return hashList([\n';
         for (let p of props) {
-            method += '    ' + p.name + ',\n';
+            method += '    ' + p.name + `,\n`;
         }
         method += '  ]);\n';
         method += '}';
@@ -673,7 +725,7 @@ class DataClassGenerator {
 
             if (classLine) {
                 clazz = new DartClass();
-                clazz.startsAtLine = x + 1;
+                clazz.startsAtLine = linePos;
 
                 let classNext = false;
                 let extendsNext = false;
@@ -742,11 +794,12 @@ class DataClassGenerator {
                     clazz.constrStartsAtLine = linePos;
                 }
 
-                if (clazz.constrStartsAtLine != -1 && clazz.constrEndsAtLine == -1 ) {
+                if (clazz.constrStartsAtLine != null && clazz.constrEndsAtLine == null) {
                     clazz.constr = clazz.constr == null ? line + '\n' : clazz.constr + line + '\n';
                     // Detect end of constructor.
                     if (brackets == 0) {
-                        clazz.constrEndsAtLine = linePos + 1;
+                        clazz.constrEndsAtLine = linePos;
+                        clazz.constr = removeEnd(clazz.constr, '\n');
                     }
                 }
 
@@ -981,8 +1034,9 @@ class JsonReader {
                     resolve();
                 }, 120));
             } else {
-                f += file.content;
+                f += file.content + '\n\n';
                 if (i == length - 1) {
+                    f = removeEnd(f, '\n\n');
                     await generateDataClass(f, true);
                 }
             }
@@ -1200,7 +1254,7 @@ function getLangId() {
  * @param {string} key
  */
 function includeFunction(key) {
-    return readSetting('dart_data_class.generate.' + key) == true;
+    return readSetting('dart_data_class_generator.generate.' + key) == true;
 }
 
 /**

@@ -1,10 +1,30 @@
 {
 	"name": "dart-data-class-generator",
 	"displayName": "Dart Data Class Generator",
-	"description": "Create dart data classes easily, fast and without writing boilerplate.",
-	"version": "0.0.1",
+	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
+	"publisher": "bendix-ma",
+	"version": "0.1.0",
 	"engines": {
 		"vscode": "^1.37.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/BendixMa/Dart-Data-Class-Generator"
+	},
+	"icon": "assets/icon.png",
+	"keywords": [
+		"dart data class generator",
+		"dart data class",
+		"dart data",
+		"dart",
+		"data class generator"
+	],
+	"galleryBanner": {
+		"color": "#FFFFFF",
+		"theme": "light"
+	},
+	"author": {
+		"name": "Bendix"
 	},
 	"categories": [
 		"Other"

@@ -8,7 +8,7 @@ The generator can generate the constructor, copyWidth, toMap, fromMap, toJson, f
 
 ## Create data classes based on class properties
 
-![](gif_from_class.gif)
+![](assets/gif_from_class.gif)
 
 ### **How?**
 
@@ -25,7 +25,7 @@ to find the changes and update the class. **Note that this feature is still in b
 
 ## Create data classes based on JSON (beta)
 
-![](gif_from_json.gif)
+![](assets/gif_from_json.gif)
 
 ### **How?**
 
@@ -60,5 +60,5 @@ You can customize the generator to only generate the functions you want in your 
 
 ## Release Notes
 
-### 0.0.1
+### 0.1.0
 Initial release (Beta).

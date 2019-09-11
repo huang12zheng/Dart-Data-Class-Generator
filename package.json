@@ -47,7 +47,7 @@
 						"default": false,
 						"description": "If true, generates default values for the constructor."
 					},
-					"dart_data_class_generator.class.manual_override": {
+					"dart_data_class_generator.override.manual": {
 						"type": "boolean",
 						"enum": [
 							true,

@@ -98,7 +98,7 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
         if (clazzes.length > 0) {
             for (let clazz of clazzes) {
                 if (!fromJSON && clazz.isValid && clazz.toReplace.length > 0) {
-                    if (!readSetting('class.manual_override')) {
+                    if (!readSetting('override.manual')) {
                         const r = await vscode.window.showQuickPick(['Yes', 'No'], {
                             placeHolder: `Do you want to override changes in ${clazz.name}? Custom changes to the functions may not be preserved!`,
                             canPickMany: false

@@ -47,7 +47,7 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.fromMap.default_values`: If true, checks if a field is null when deserializing and provides a non-null default value.
 * `dart_data_class_generator.constructor.default_values`: If true, generates default values for the constructor.
 * `dart_data_class_generator.json.seperate`: Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file.
-* `dart_data_class_generator.class.manual_override`: If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator.
+* `dart_data_class_generator.override.manual`: If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator.
 * `dart_data_class_generator.constructor`: If true, generates a constructor for a data class.
 * `dart_data_class_generator.copyWidth`: If true, generates a copyWidth function for a data class.
 * `dart_data_class_generator.toMap`: If true, generates a toMap function for a data class.

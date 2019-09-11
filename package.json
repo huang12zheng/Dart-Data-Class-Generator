@@ -29,6 +29,34 @@
 			{
 				"title": "Dart Data Class Generator configuration",
 				"properties": {
+					"dart_data_class_generator.generate.default_values": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, checks if a field is null when deserializing and provides a non-null default value."
+					},
+					"dart_data_class_generator.class.manual_override": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator."
+					},
+					"dart_data_class_generator.json.seperate": {
+						"type": "string",
+						"enum": [
+							"ask",
+							"seperate",
+							"current_file"
+						],
+						"default": "ask",
+						"description": "Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file."
+					},
 					"dart_data_class_generator.generate.constructor": {
 						"type": "boolean",
 						"enum": [
@@ -36,7 +64,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate a constructor for a data class."
+						"description": "If true, generates a constructor for a data class."
 					},
 					"dart_data_class_generator.generate.copyWidth": {
 						"type": "boolean",
@@ -45,7 +73,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the copyWidth function for a data class."
+						"description": "If true, generates a copyWidth function for a data class."
 					},
 					"dart_data_class_generator.generate.toMap": {
 						"type": "boolean",
@@ -54,7 +82,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the toMap function for a data class."
+						"description": "If true, generates a toMap function for a data class."
 					},
 					"dart_data_class_generator.generate.fromMap": {
 						"type": "boolean",
@@ -63,7 +91,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the fromMap function for a data class."
+						"description": "If true, generates a fromMap function for a data class."
 					},
 					"dart_data_class_generator.generate.toJson": {
 						"type": "boolean",
@@ -72,7 +100,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the toJson function for a data class."
+						"description": "If true, generates a toJson function for a data class."
 					},
 					"dart_data_class_generator.generate.fromJson": {
 						"type": "boolean",
@@ -81,7 +109,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the fromJson function for a data class."
+						"description": "If true, generates a fromJson function for a data class."
 					},
 					"dart_data_class_generator.generate.toString": {
 						"type": "boolean",
@@ -90,7 +118,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the toString function for a data class."
+						"description": "If true, generates a toString function for a data class."
 					},
 					"dart_data_class_generator.generate.equality": {
 						"type": "boolean",
@@ -99,7 +127,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate a value equality function for a data class."
+						"description": "If true, generates a value equality function for a data class."
 					},
 					"dart_data_class_generator.generate.hashCode": {
 						"type": "boolean",
@@ -108,7 +136,7 @@
 							false
 						],
 						"default": true,
-						"description": "Whether to generate the hashCode function for a data class."
+						"description": "If true, generates a hashCode function for a data class."
 					}
 				}
 			}

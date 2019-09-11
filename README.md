@@ -1,6 +1,6 @@
 # Dart Data Class Generator (Beta)
 
-Create dart data classes easily, fast and without writing boilerplate or running some crazy code generation.
+Create dart data classes easily, fast and without writing boilerplate or running code generation.  
 
 ## Features
 
@@ -25,7 +25,7 @@ to find the changes and update the class. **Note that this feature is still in b
 **Note:**  
 **If the class is a Widget (Stateless or Stateful), only the constructor will be generated. State classes wont be detected.**  
 
-## Create data classes from JSON (beta)
+## Create data classes based on JSON (beta)
 
 ![](gif_from_json.gif)
 
@@ -46,15 +46,18 @@ to find the changes and update the class. **Note that this feature is still in b
 
 You can customize the generator to only generate the functions you want in your settings file.
 
-* `dart_data_class_generator.generate.constructor`: Whether to generate a constructor for a data class.
-* `dart_data_class_generator.generate.copyWidth`: Whether to generate a copyWidth function for a data class.
-* `dart_data_class_generator.generate.toMap`: Whether to generate a toMap function for a data class.
-* `dart_data_class_generator.generate.fromMap`: Whether to generate a fromMap function for a data class.
-* `dart_data_class_generator.generate.toJson`: Whether to generate a toJson function for a data class.
-* `dart_data_class_generator.generate.fromJson`: Whether to generate a fromJson function for a data class.
-* `dart_data_class_generator.generate.toString`: Whether to generate an overriden toString function for a data class.
-* `dart_data_class_generator.generate.equality`: Whether to generate an overriden value equality function for a data class.
-* `dart_data_class_generator.generate.hashCode`: Whether to generate an overriden hashCode function for a data class.
+* `dart_data_class_generator.generate.default_values`: If true, checks if a field is null when deserializing and provides a non-null default value.
+* `dart_data_class_generator.json.seperate`: Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file.
+* `dart_data_class_generator.class.manual_override`: If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator.
+* `dart_data_class_generator.generate.constructor`: If true, generates a constructor for a data class.
+* `dart_data_class_generator.generate.copyWidth`: If true, generates a copyWidth function for a data class.
+* `dart_data_class_generator.generate.toMap`: If true, generates a toMap function for a data class.
+* `dart_data_class_generator.generate.fromMap`: If true, generates a fromMap function for a data class.
+* `dart_data_class_generator.generate.toJson`: If true, generates a toJson function for a data class.
+* `dart_data_class_generator.generate.fromJson`: If true, generates a fromJson function for a data class.
+* `dart_data_class_generator.generate.toString`: If true, generates a toString function for a data class.
+* `dart_data_class_generator.generate.equality`: If true, generates a value equality function for a data class.
+* `dart_data_class_generator.generate.hashCode`: If true, generates a hashCode function for a data class.
 
 ## Release Notes
 

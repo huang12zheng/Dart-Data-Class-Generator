@@ -31,13 +31,23 @@ async function generateJsonDataClass() {
         let reader = new JsonReader(document, name);
         let seperate = true;
 
-        if (!(await reader.isJsonMalformed)) {
+        if (await reader.error == null) {
             if (reader.files.length >= 2) {
-                const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                    canPickMany: false,
-                    placeHolder: 'Do you wish to seperate the JSON into multiple files?'
-                });
-                seperate = r == 'Yes';
+                const setting = readSetting('json.seperate');
+                if (setting == 'ask') {
+                    const r = await vscode.window.showQuickPick(['Yes', 'No'], {
+                        canPickMany: false,
+                        placeHolder: 'Do you wish to seperate the JSON into multiple files?'
+                    });
+
+                    if (r != null) {
+                        seperate = r == 'Yes';
+                    } else {
+                        return;
+                    }
+                } else {
+                    seperate = setting == 'seperate';
+                }
             }
 
             vscode.window.withProgress({
@@ -56,7 +66,7 @@ async function generateJsonDataClass() {
                 });
             });
         } else {
-            showError("The provided JSON is malformed or couldn't be parsed!");
+            showError(await reader.error);
         }
     } else if (langId == 'json') {
         showError('Please paste the JSON directly into an empty .dart file and then try again!');
@@ -71,6 +81,13 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
         let clazzes = generator.clazzes;
         let issues = [];
 
+        // Reverse clazzes when converting from JSON and clazz length greater than 2 => 
+        // dev chose single file option, to make sure classes are inserted in correct
+        // order and not reversed.
+        if (fromJSON && clazzes.length >= 2) {
+            clazzes = clazzes.reverse();
+        }
+
         // Show a prompt if there are more than one classes in the current editor.
         if (clazzes.length >= 2 && !fromJSON) {
             clazzes = await showClassChooser(clazzes);
@@ -81,16 +98,29 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
         if (clazzes.length > 0) {
             for (let clazz of clazzes) {
                 if (!fromJSON && clazz.isValid && clazz.toReplace.length > 0) {
-                    const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                        placeHolder: `Do you want to override changes in class ${clazz.name}? This feature is still in beta!`,
-                        canPickMany: false
-                    });
+                    if (!readSetting('class.manual_override')) {
+                        const r = await vscode.window.showQuickPick(['Yes', 'No'], {
+                            placeHolder: `Do you want to override changes in ${clazz.name}? Custom changes to the functions may not be preserved!`,
+                            canPickMany: false
+                        });
 
-                    if (r != null) {
-                        if (r != 'Yes')
-                            clazz.toReplace = [];
+                        if (r == null) return;
+                        else if (r != 'Yes') clazz.toReplace = [];
                     } else {
-                        return;
+                        // When manual overriding is activated.
+                        let result = [];
+                        for (let replacement of clazz.toReplace) {
+                            const r = await vscode.window.showQuickPick(['Yes', 'No'], {
+                                placeHolder: `Do you want to override ${replacement.name}?`,
+                                canPickMany: false
+                            });
+
+                            if (r == null) {
+                                showInfo('Override flow canceled!');
+                                return;
+                            } else if ('Yes' == r) result.push(replacement);
+                        }
+                        clazz.toReplace = result;
                     }
                 }
             }
@@ -119,6 +149,7 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
             let msg = clazz.name + ' couldn\'t be converted to a data class: ';
             if (!clazz.hasProperties) showError(msg + 'Class must have at least one property!');
             else if (!clazz.hasEnding) showError(msg + 'Class has no ending!');
+            else if (!clazz.uniquePropNames) showError(msg + 'Class doesn\'t have unique property names!');
             else showError(removeEnd(msg, ': ') + '.');
         }
 
@@ -177,6 +208,7 @@ class DartClass {
         /** @type {ClassPart[]} */
         this.toReplace = [];
         this.imports = '';
+        this.isArray = false;
     }
 
     get propsEndAtLine() {
@@ -212,7 +244,7 @@ class DartClass {
     }
 
     get isValid() {
-        return this.classDetected && this.hasEnding && this.hasProperties;
+        return this.classDetected && this.hasEnding && this.hasProperties && this.uniquePropNames;
     }
 
     get isWidget() {
@@ -225,6 +257,17 @@ class DartClass {
 
     get isState() {
         return !this.isWidget && this.extend != null && this.extend.startsWith('State<');
+    }
+
+    get uniquePropNames() {
+        let props = [];
+        for (let p of this.properties) {
+            const n = p.name;
+            if (props.includes(n))
+                return false;
+            props.push(n);
+        }
+        return true;
     }
 
     /**
@@ -317,6 +360,21 @@ class ClassProperty {
     get isPrimitive() {
         let t = this.listType;
         return t == 'String' || t == 'num' || t == 'dynamic' || this.isDouble || this.isInt;
+    }
+
+    get defValue() {
+        if (this.isList) {
+            return '[]';
+        } else {
+            switch (this.type) {
+                case 'String': return "''";
+                case 'int':
+                case 'num': return "0";
+                case 'double': return "0.0";
+                case 'dynamic': return "null";
+                default: return `${this.type}()`;
+            }
+        }
     }
 
     get isInt() {
@@ -473,8 +531,6 @@ class DataClassGenerator {
 
         if (clazz.isWidget) {
             constr += '  Key key,\n'
-            if (clazz.isStatelessWidget)
-                constr = 'const ' + constr;
         }
 
         for (let p of clazz.properties) {
@@ -488,12 +544,12 @@ class DataClassGenerator {
         }
 
         if (clazz.constr != null) {
-            let c = null;
-            if (clazz.constr.includes(':')) c = ':';
-            else if (clazz.constr.trimRight().endsWith('{')) c = '{';
+            let i = null;
+            if (clazz.constr.includes(':')) i = clazz.constr.indexOf(':');
+            else if (clazz.constr.trimRight().endsWith('{')) i = clazz.constr.lastIndexOf('{');
 
-            if (c != null) {
-                let ending = clazz.constr.substring(clazz.constr.lastIndexOf(c), clazz.constr.length);
+            if (i != null) {
+                let ending = clazz.constr.substring(i, clazz.constr.length);
                 constr += `}) ${ending}`;
             } else {
                 stdConstrEnd();
@@ -539,7 +595,7 @@ class DataClassGenerator {
 	 */
     insertToMap(clazz) {
         let props = clazz.properties;
-        let method = 'Map<String, dynamic> toMap() {\n';
+        let method = `Map<String, dynamic> toMap() {\n`;
         method += '  return {\n';
         for (let p of props) {
             method += `    '${p.jsonName}': `;
@@ -564,19 +620,21 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertFromMap(clazz) {
+        let defVal = readSetting('generate.default_values');
         let props = clazz.properties;
         let method = 'static ' + clazz.name + ' fromMap(Map<String, dynamic> map) {\n';
+        method += '  if (map == null) return null;\n\n';
         method += '  return ' + clazz.name + '(\n';
         for (let p of props) {
             method += `    ${p.name}: `;
             if (!p.isList) {
-                method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '.toDouble()' : p.isInt ? '.toInt()' : '') : ''},\n`;
+                method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '?.toDouble()' : p.isInt ? '?.toInt()' : '') : ''}${defVal ? ` ?? ${p.defValue}` : ''},\n`;
             } else {
-                method += `${p.type}.from(map['${p.jsonName}'].map((x) => `;
+                method += `${p.type}.from(`;
                 if (p.isPrimitive) {
-                    method += `x${this.fromJSON ? (p.isDouble ? '.toDouble()' : p.isInt ? '.toInt()' : '') : ''})),\n`;
+                    method += `map['${p.jsonName}']${defVal ? ' ?? []' : ''}),\n`;
                 } else {
-                    method += `${p.listType}.fromMap(x))),\n`;
+                    method += `map['${p.jsonName}']?.map((x) => ${p.listType}.fromMap(x))${defVal ? ' ?? []' : ''}),\n`;
                 }
             }
             if (p.name == props[props.length - 1].name) method += '  );\n';
@@ -843,7 +901,21 @@ class JsonReader {
         this.clazzes = [];
         /** @type {DartFile[]} */
         this.files = [];
-        this.isJsonMalformed = this.generateFiles();
+
+        this.error = this.checkJson();
+    }
+
+    async checkJson() {
+        const isArray = this.json.startsWith('[');
+        if (isArray && !this.json.includes('{')) {
+            return 'Primitive JSON arrays are not supported! Please serialize them directly.';
+        }
+
+        if (await this.generateFiles()) {
+            return 'The provided JSON is malformed or could\'nt be parsed!';
+        }
+
+        return null;
     }
 
 	/**
@@ -880,18 +952,30 @@ class JsonReader {
         let clazz = new DartClass();
         clazz.startsAtLine = 1;
         clazz.name = capitalize(key);
-        this.clazzes.push(clazz);
+
+        let isArray = false;
+        if (object instanceof Array) {
+            isArray = true;
+            clazz.isArray = true;
+            clazz.name += 's';
+            showInfo('Top level JSON arrays are as of now not supported, generating nested objects...');
+        } else {
+            // Top level arrays are currently not supported!
+            this.clazzes.push(clazz);
+        }
 
         let i = 1;
         clazz.classContent += 'class ' + clazz.name + ' {\n';
         for (let key in object) {
+            // named key for class names.
+            let k = !isArray ? key : removeEnd(clazz.name.toLowerCase(), 's');
+
             let value = object[key];
             let type = this.getPrimitive(value);
 
             if (type == null) {
                 if (value instanceof Array) {
                     if (value.length > 0) {
-                        let k = key;
                         if (k.endsWith('ies')) k = removeEnd(k, 'ies') + 'y';
                         if (k.endsWith('s')) k = removeEnd(k, 's');
                         const i0 = this.getPrimitive(value[0]);
@@ -906,13 +990,16 @@ class JsonReader {
                         type = 'List<dynamic>';
                     }
                 } else {
-                    this.getClazzes(value, key);
-                    type = capitalize(key);
+                    this.getClazzes(value, k);
+                    type = !isArray ? capitalize(key) : `List<${capitalize(k)}>`;
                 }
             }
 
-            clazz.properties.push(new ClassProperty(type, key, ++i));
-            clazz.classContent += '  final ' + type + ' ' + toVarName(key) + ';\n';
+            clazz.properties.push(new ClassProperty(type, k, ++i));
+            clazz.classContent += '  final ' + type + ' ' + toVarName(k) + ';\n';
+
+            // If object is JSONArray, break after first item.
+            if (isArray) break;
         }
         clazz.endsAtLine = ++i;
         clazz.classContent += '}';
@@ -1036,6 +1123,7 @@ class JsonReader {
             } else {
                 f += file.content + '\n\n';
                 if (i == length - 1) {
+                    console.log(f);
                     f = removeEnd(f, '\n\n');
                     await generateDataClass(f, true);
                 }
@@ -1254,14 +1342,14 @@ function getLangId() {
  * @param {string} key
  */
 function includeFunction(key) {
-    return readSetting('dart_data_class_generator.generate.' + key) == true;
+    return readSetting('generate.' + key) == true;
 }
 
 /**
  * @param {string} key
  */
 function readSetting(key) {
-    return vscode.workspace.getConfiguration().get(key);
+    return vscode.workspace.getConfiguration().get('dart_data_class_generator.' + key);
 }
 
 /**

@@ -364,7 +364,7 @@ class ClassProperty {
 
     get defValue() {
         if (this.isList) {
-            return '[]';
+            return 'const []';
         } else {
             switch (this.type) {
                 case 'String': return "''";
@@ -438,25 +438,25 @@ class DataClassGenerator {
 
     generateDataClazzes() {
         for (let clazz of this.clazzes) {
-            if (includeFunction('constructor'))
+            if (readSetting('constructor'))
                 this.insertConstructor(clazz);
 
             if (!clazz.isWidget) {
-                if (includeFunction('copyWidth'))
+                if (readSetting('copyWidth'))
                     this.insertCopyWith(clazz);
-                if (includeFunction('toMap'))
+                if (readSetting('toMap'))
                     this.insertToMap(clazz);
-                if (includeFunction('fromMap'))
+                if (readSetting('fromMap'))
                     this.insertFromMap(clazz);
-                if (includeFunction('toJson'))
+                if (readSetting('toJson'))
                     this.insertToJson(clazz);
-                if (includeFunction('fromJson'))
+                if (readSetting('fromJson'))
                     this.insertFromJson(clazz);
-                if (includeFunction('toString'))
+                if (readSetting('toString'))
                     this.insertToString(clazz);
-                if (includeFunction('equality'))
+                if (readSetting('equality'))
                     this.insertEquality(clazz);
-                if (includeFunction('hashCode'))
+                if (readSetting('hashCode'))
                     this.insertHash(clazz);
             }
         }
@@ -522,21 +522,19 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertConstructor(clazz) {
+        const defVal = readSetting('constructor.default_values');
         let constr = '';
         if (clazz.constr != null && clazz.constr.trimLeft().startsWith('const', 0)) {
             constr += 'const ';
         }
 
         constr += clazz.name + '({\n';
-
-        if (clazz.isWidget) {
-            constr += '  Key key,\n'
-        }
+        if (clazz.isWidget) constr += '  Key key,\n'
 
         for (let p of clazz.properties) {
             const parameter = `this.${p.name}`
             const fp = this.findConstrParameter(parameter, clazz);
-            constr += `  ${fp == null ? parameter + ',' : fp}\n`;
+            constr += `  ${fp == null ? `${parameter}${defVal && (p.isPrimitive || p.isList) ? ` = ${p.defValue}` : ''}` + ',' : fp}\n`;
         }
 
         const stdConstrEnd = () => {
@@ -620,7 +618,7 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertFromMap(clazz) {
-        let defVal = readSetting('generate.default_values');
+        let defVal = readSetting('fromMap.default_values');
         let props = clazz.properties;
         let method = 'static ' + clazz.name + ' fromMap(Map<String, dynamic> map) {\n';
         method += '  if (map == null) return null;\n\n';
@@ -1123,7 +1121,6 @@ class JsonReader {
             } else {
                 f += file.content + '\n\n';
                 if (i == length - 1) {
-                    console.log(f);
                     f = removeEnd(f, '\n\n');
                     await generateDataClass(f, true);
                 }
@@ -1336,13 +1333,6 @@ function getDocumentText() {
 
 function getLangId() {
     return getDocument().languageId;
-}
-
-/**
- * @param {string} key
- */
-function includeFunction(key) {
-    return readSetting('generate.' + key) == true;
 }
 
 /**

@@ -17,7 +17,7 @@ function activate(context) {
 async function generateJsonDataClass() {
     let langId = getLangId();
     if (langId == 'dart') {
-        let document = getDocumentText();
+        let document = getDocText();
         let lines = document.split('\n');
 
         const name = await vscode.window.showInputBox({
@@ -53,17 +53,11 @@ async function generateJsonDataClass() {
             vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 cancellable: false
-            }, function (progress, token) {
+            }, async function (progress, token) {
                 progress.report({ increment: 0, message: 'Generating Data Classes...' });
-                return new Promise(resolve => {
-                    vscode.window.activeTextEditor.edit(editor => {
-                        editor.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(lines.length + 1, 0)), reader.files[0].content);
-                        setTimeout(async () => {
-                            await reader.writeFiles(progress, seperate);
-                            resolve();
-                        }, 300);
-                    });
-                });
+                await reader.commitJson(progress, seperate);
+                clearSelection();
+                scrollTo(0);
             });
         } else {
             showError(await reader.error);
@@ -75,9 +69,9 @@ async function generateJsonDataClass() {
     }
 }
 
-async function generateDataClass(text = getDocumentText(), fromJSON = false) {
+async function generateDataClass(text = getDocText(), fromJSON = false) {
     if (getLangId() == 'dart') {
-        let generator = new DataClassGenerator(text, null, fromJSON);
+        const generator = new DataClassGenerator(text, null, fromJSON);
         let clazzes = generator.clazzes;
         let issues = [];
 
@@ -128,7 +122,7 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
 			/** 
 			* @param {vscode.TextEditor} editor
 			*/
-            await vscode.window.activeTextEditor.edit(async (editor) => {
+            await vscode.window.activeTextEditor.edit(editor => {
                 for (let i = clazzes.length - 1; i >= 0; i--) {
                     const clazz = clazzes[i];
 
@@ -139,6 +133,8 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
                     }
                 }
             });
+
+            clearSelection();
         } else {
             showError('No convertable dart classes were detected!');
             return null;
@@ -146,7 +142,7 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
 
         // Show errors that may have occured.
         for (let clazz of issues.reverse()) {
-            let msg = clazz.name + ' couldn\'t be converted to a data class: ';
+            const msg = clazz.name + ' couldn\'t be converted to a data class: ';
             if (!clazz.hasProperties) showError(msg + 'Class must have at least one property!');
             else if (!clazz.hasEnding) showError(msg + 'Class has no ending!');
             else if (!clazz.uniquePropNames) showError(msg + 'Class doesn\'t have unique property names!');
@@ -164,9 +160,9 @@ async function generateDataClass(text = getDocumentText(), fromJSON = false) {
  * @param {DartClass[]} clazzez
  */
 async function showClassChooser(clazzez) {
-    let values = clazzez.map((v) => v.name);
+    const values = clazzez.map((v) => v.name);
 
-    let chosen = await vscode.window.showQuickPick(values, {
+    const chosen = await vscode.window.showQuickPick(values, {
         placeHolder: 'Please select the classes you want to generate data classes of.',
         canPickMany: true,
     });
@@ -227,6 +223,14 @@ class DartClass {
         return this.startsAtLine != null;
     }
 
+    get hasNamedConstructor() {
+        if (this.constr != null) {
+            return this.constr.replace('const', '').trimLeft().startsWith(this.name + '({');
+        } 
+
+        return true;
+    }
+
     get hasConstructor() {
         return this.constrStartsAtLine != null && this.constrEndsAtLine != null && this.constr != null;
     }
@@ -283,7 +287,7 @@ class DartClass {
         return null;
     }
 
-    getClassReplacement(imports = true) {
+    getClassReplacement(withImports = true) {
         let r = '';
         let lines = this.classContent.split('\n');
 
@@ -307,27 +311,32 @@ class DartClass {
             }
         }
 
-        if (imports && this.hasImports) {
+        if (withImports && this.hasImports) {
             r = this.imports + r;
         }
         return r;
     }
 
 	/**
-	 * @param {vscode.TextEditorEdit} editor
+     * @param {vscode.TextEditorEdit} editor
 	 * @param {number} [index]
 	 */
     replace(editor, index, fromJSON = false) {
-        editor.replace(
-            new vscode.Range(
-                new vscode.Position(this.startsAtLine - 1, 0),
-                new vscode.Position(this.endsAtLine, 1)
-            ), this.getClassReplacement(false) + (fromJSON ? '\n' : ''));
+        editorReplace(editor,
+            this.startsAtLine - 1,
+            this.endsAtLine,
+            this.getClassReplacement(false) + (fromJSON ? '\n' : '')
+        );
 
         // If imports need to be inserted, do it at the top of the file.
         if (this.hasImports && index == 0) {
-            if (!fromJSON && getDocumentText().includes('dart:')) this.imports = removeEnd(this.imports, '\n');
-            editor.insert(new vscode.Position(0, 0), this.imports);
+            // If document does not contain dart:... imports, add a line break
+            // for proper formatting.
+            const doc = getDocText();
+            if (this.imports.endsWith('\n\n') && doc.includes("import 'dart:"))
+                this.imports = removeEnd(this.imports, '\n');
+
+            editorInsert(editor, 0, this.imports);
         }
     }
 }
@@ -343,6 +352,10 @@ class ClassProperty {
         this.jsonName = name;
         this.name = toVarName(name);
         this.line = line;
+
+        if (name == 'nearestStation') {
+            console.log(`${name} ${this.jsonName}`);
+        }
     }
 
     get isList() {
@@ -368,8 +381,8 @@ class ClassProperty {
         } else {
             switch (this.type) {
                 case 'String': return "''";
-                case 'int':
-                case 'num': return "0";
+                case 'num':
+                case 'int': return "0";
                 case 'double': return "0.0";
                 case 'dynamic': return "null";
                 default: return `${this.type}()`;
@@ -430,10 +443,16 @@ class DataClassGenerator {
     }
 
 	/**
-	 * @param {string} imp
+	 * @param {string[]} imps
+	 * @param {DartClass} clazz
 	 */
-    hasImport(imp) {
-        return this.text.includes('import ' + "'" + imp + "';");
+    hasOneImport(imps, clazz) {
+        for (let imp of imps) {
+            const impt = `import '${imp}';`;
+            if (this.text.includes(impt) || clazz.imports.includes(impt))
+                return true;
+        }
+        return false;
     }
 
     generateDataClazzes() {
@@ -524,11 +543,28 @@ class DataClassGenerator {
     insertConstructor(clazz) {
         const defVal = readSetting('constructor.default_values');
         let constr = '';
-        if (clazz.constr != null && clazz.constr.trimLeft().startsWith('const', 0)) {
-            constr += 'const ';
+        let startBracket = '({';
+        let endBracket = '})';
+
+        if (clazz.constr != null) {
+            if (clazz.constr.trimLeft().startsWith('const'))
+                constr += 'const ';
+            
+            // Detect custom constructor brackets and preserve them.
+            const fConstr = clazz.constr.replace('const', '').trimLeft();
+            if (fConstr.startsWith(clazz.name + '([')) {
+                startBracket = '([';
+                endBracket = '])';
+            } else if (fConstr.startsWith(clazz.name + '({')) {
+                startBracket = '({';
+                endBracket = '})';
+            } else if (fConstr.startsWith(clazz.name + '(')) {
+                startBracket = '(';
+                endBracket = ')';
+            }
         }
 
-        constr += clazz.name + '({\n';
+        constr += clazz.name + startBracket + '\n';
         if (clazz.isWidget) constr += '  Key key,\n'
 
         for (let p of clazz.properties) {
@@ -538,7 +574,7 @@ class DataClassGenerator {
         }
 
         const stdConstrEnd = () => {
-            constr += '})' + (clazz.isWidget ? ' : super(key: key);' : ';');
+            constr += endBracket + (clazz.isWidget ? ' : super(key: key);' : ';');
         }
 
         if (clazz.constr != null) {
@@ -548,7 +584,7 @@ class DataClassGenerator {
 
             if (i != null) {
                 let ending = clazz.constr.substring(i, clazz.constr.length);
-                constr += `}) ${ending}`;
+                constr += `${endBracket} ${ending}`;
             } else {
                 stdConstrEnd();
             }
@@ -579,7 +615,7 @@ class DataClassGenerator {
         method += '  return ' + clazz.name + '(\n';
 
         for (let p of clazz.properties) {
-            method += '    ' + p.name + ': ' + p.name + ' ?? this.' + p.name + ',\n';
+            method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}${p.name} ?? this.${p.name},\n`;
         }
 
         method += '  );\n'
@@ -624,7 +660,7 @@ class DataClassGenerator {
         method += '  if (map == null) return null;\n\n';
         method += '  return ' + clazz.name + '(\n';
         for (let p of props) {
-            method += `    ${p.name}: `;
+            method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
             if (!p.isList) {
                 method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '?.toDouble()' : p.isInt ? '?.toInt()' : '') : ''}${defVal ? ` ?? ${p.defValue}` : ''},\n`;
             } else {
@@ -646,13 +682,12 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertToJson(clazz) {
-        if (!this.hasImport('dart:convert') && !clazz.imports.includes('dart:convert')) {
+        if (!this.hasOneImport(['dart:convert'], clazz)) {
             clazz.imports += "import 'dart:convert';\n"
         }
+
         if (clazz.classContent.includes('String toJson()')) return;
-
         let method = 'String toJson() => json.encode(toMap());';
-
         this.append(method, clazz);
     }
 
@@ -660,13 +695,12 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertFromJson(clazz) {
-        if (!this.hasImport('dart:convert') && !clazz.imports.includes('dart:convert')) {
+        if (!this.hasOneImport(['dart:convert'], clazz)) {
             clazz.imports += "import 'dart:convert';\n"
         }
+
         if (clazz.classContent.includes(`static ${clazz.name} fromJson(`)) return;
-
-        let method = 'static ' + clazz.name + ' fromJson(String source) => fromMap(json.decode(source));';
-
+        let method = `static ${clazz.name} fromJson(String source) => fromMap(json.decode(source));`;
         this.append(method, clazz);
     }
 
@@ -713,7 +747,12 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertHash(clazz) {
-        if (!(this.hasImport('dart:ui') || this.hasImport('package:flutter/material.dart') || this.hasImport('package:flutter/cupertino.dart') || this.hasImport('package:flutter/widgets.dart'))) {
+        if (!this.hasOneImport([
+            'dart:ui',
+            'package:flutter/material.dart',
+            'package:flutter/cupertino.dart',
+            'package:flutter/widgets.dart'
+        ], clazz)) {
             clazz.imports += "import 'dart:ui';\n\n";
         }
 
@@ -819,7 +858,7 @@ class DataClassGenerator {
                 brackets -= count(line, ')');
 
                 if (!clazz.hasConstructor && curlyBrackets == 1) {
-                    let lineValid = !line.trimLeft().startsWith(clazz.name) && !includesOne(line, ['static', '=', '(', ')', '{', '@']);
+                    const lineValid = !line.trimLeft().startsWith(clazz.name) && !includesOne(line, ['static', '=', '(', ')', '{', '@']);
                     if (lineValid) {
                         let type = null;
                         let name = null;
@@ -845,7 +884,7 @@ class DataClassGenerator {
                 // making sure not to falsely detect a function constructor invocation with the actual 
                 // constructor with boilerplaty checking all possible constructor options.
                 let name = clazz.name;
-                let includesConstr = line.includes(name + '({') || line.includes(name + '([');
+                let includesConstr = line.replace('const', '').trimLeft().startsWith(name + '(');
                 if (includesConstr && !classLine) {
                     clazz.constrStartsAtLine = linePos;
                 }
@@ -956,7 +995,6 @@ class JsonReader {
             isArray = true;
             clazz.isArray = true;
             clazz.name += 's';
-            showInfo('Top level JSON arrays are as of now not supported, generating nested objects...');
         } else {
             // Top level arrays are currently not supported!
             this.clazzes.push(clazz);
@@ -994,7 +1032,7 @@ class JsonReader {
             }
 
             clazz.properties.push(new ClassProperty(type, k, ++i));
-            clazz.classContent += '  final ' + type + ' ' + toVarName(k) + ';\n';
+            clazz.classContent += `  final ${type} ${toVarName(k)};\n`;
 
             // If object is JSONArray, break after first item.
             if (isArray) break;
@@ -1054,15 +1092,14 @@ class JsonReader {
 	/**
 	 * @param {DartClass} clazz
 	 */
-    fillImports(clazz) {
+    fillGenImports(clazz) {
         let imports = '';
         let hasGenType = false;
         for (let cp of clazz.properties) {
-            // Import only unambigous generated types.
+            // Import only inambigous generated types.
             // E.g. if there are multiple generated classes with
             // the same name, do not include an import of that class.
-            let typeCount = this.getGeneratedTypeCount(cp.listType);
-            if (typeCount == 1) {
+            if (this.getGeneratedTypeCount(cp.listType) == 1) {
                 hasGenType = true;
                 let imp = `import '${createFileName(cp.listType)}.dart';\n`;
                 clazz.imports += imp;
@@ -1082,47 +1119,47 @@ class JsonReader {
 	 * @param {vscode.Progress} progress
 	 * @param {boolean} seperate
 	 */
-    async writeFiles(progress, seperate) {
+    async commitJson(progress, seperate) {
         let path = getCurrentPath();
         let f = '';
 
         const length = this.files.length;
         for (let i = 0; i < length; i++) {
             const file = this.files[i];
+            const isLast = i == length - 1;
+            const generator = new DataClassGenerator(file.content, [file.clazz], true);
+
+            progress.report({
+                increment: ((1 / length) * 100),
+                message: `Creating file ${file.name}...`
+            });
+
             if (seperate) {
-                progress.report({
-                    increment: ((1 / length) * 100),
-                    message: `Creating file ${file.name}...`
-                });
+                const clazz = generator.clazzes[0];
+                this.fillGenImports(clazz)
 
                 if (i > 0) {
-                    let generator = new DataClassGenerator(file.content, [file.clazz], true);
-                    for (let clazz of generator.clazzes) {
-                        this.fillImports(clazz)
-                        await writeFile(clazz.getClassReplacement(), file.name, false, path);
-                    }
+                    await writeFile(clazz.getClassReplacement(), file.name, false, path);
                 } else {
-                    let clazzes = await generateDataClass(file.content, true);
-                    if (clazzes != null) {
-                        let imports = this.fillImports(file.clazz);
-                        if (imports != null) {
-                            let lines = clazzes[0].imports.split('\n').length - 1;
-                            await getEditor().edit((editor) => {
-                                editor.insert(new vscode.Position(lines, 0), imports);
-                            });
-                        }
-                    }
+                    await getEditor().edit(editor => {
+                        editorReplace(editor, 0, null, clazz.getClassReplacement());
+                    });
                 }
 
                 // Slow the writing process intentionally down.
-                await new Promise(resolve => setTimeout(() => {
-                    resolve();
-                }, 120));
+                await new Promise(resolve => setTimeout(() => resolve(), 120));
             } else {
-                f += file.content + '\n\n';
-                if (i == length - 1) {
+                // Insert in current file when JSON should not be seperated.
+                for (let clazz of generator.clazzes) {
+                    f += clazz.getClassReplacement(false) + '\n';
+                }
+
+                if (isLast) {
                     f = removeEnd(f, '\n\n');
-                    await generateDataClass(f, true);
+                    await getEditor().edit(editor => {
+                        editorReplace(editor, 0, null, f);
+                        editorInsert(editor, 0, file.clazz.imports);
+                    });
                 }
             }
         }
@@ -1214,16 +1251,103 @@ function toVarName(source) {
     if (r.length == 0)
         r = s;
 
-    if (r == 'return')
-        r = 'rReturn';
-    if (r == 'final')
-        r = 'fFinal';
-    if (r == 'const')
-        r = 'cConst';
+    // Prevent dart keywords from being used.
+    switch (r) {
+        case 'assert': r = 'aAssert'; break;
+        case 'break': r = 'bBreak'; break;
+        case 'case': r = 'cCase'; break;
+        case 'catch': r = 'cCatch'; break;
+        case 'class': r = 'cClass'; break;
+        case 'const': r = 'cConst'; break;
+        case 'continue': r = 'cContinue'; break;
+        case 'default': r = 'dDefault'; break;
+        case 'do': r = 'dDo'; break;
+        case 'else': r = 'eElse'; break;
+        case 'enum': r = 'eEnum'; break;
+        case 'extends': r = 'eExtends'; break;
+        case 'false': r = 'fFalse'; break;
+        case 'final': r = 'fFinal'; break;
+        case 'finally': r = 'fFinally'; break;
+        case 'for': r = 'fFor'; break;
+        case 'if': r = 'iIf'; break;
+        case 'in': r = 'iIn'; break;
+        case 'is': r = 'iIs'; break;
+        case 'new': r = 'nNew'; break;
+        case 'null': r = 'nNull'; break;
+        case 'rethrow': r = 'rRethrow'; break;
+        case 'return': r = 'rReturn'; break;
+        case 'super': r = 'sSuper'; break;
+        case 'switch': r = 'sSwitch'; break;
+        case 'this': r = 'tThis'; break;
+        case 'throw': r = 'tThrow'; break;
+        case 'true': r = 'tTrue'; break;
+        case 'try': r = 'tTry'; break;
+        case 'var': r = 'vVar'; break;
+        case 'void': r = 'vVoid'; break;
+        case 'while': r = 'wWhile'; break;
+        case 'with': r = 'wWith'; break;
+    }
+
     if (r.length > 0 && r[0].match(new RegExp(/[0-9]/)))
         r = 'n' + r;
 
     return r;
+}
+
+/**
+ * @param {vscode.TextEditorEdit} editor
+ * @param {number} start
+ * @param {number} end
+ * @param {string} value
+ */
+function editorReplace(editor, start = null, end = null, value) {
+    editor.replace(new vscode.Range(
+        new vscode.Position(start || 0, 0),
+        new vscode.Position(end || getDocText().split('\n').length, 1)
+    ),
+        value
+    );
+}
+
+/**
+ * @param {vscode.TextEditorEdit} editor
+ * @param {number} at
+ * @param {string} value
+ */
+function editorInsert(editor, at, value) {
+    editor.insert(new vscode.Position(at, 0), value);
+}
+
+/**
+ * @param {vscode.TextEditorEdit} editor
+ * @param {number} from
+ * @param {number} to
+ */
+function editorDelete(editor, from = null, to = null) {
+    editor.delete(
+        new vscode.Range(
+            new vscode.Position(from || 0, 0),
+            new vscode.Position(to || getDocText().split('\n').length, 1)
+        )
+    );
+}
+
+/**
+ * @param {number} from
+ * @param {number} to
+ */
+function scrollTo(from = null, to = null) {
+    getEditor().revealRange(
+        new vscode.Range(
+            new vscode.Position(from || 0, 0),
+            new vscode.Position(to || 0, 0)
+        ),
+        0
+    );
+}
+
+function clearSelection() {
+    getEditor().selection = new vscode.Selection(new vscode.Position(0, 0), new vscode.Position(0, 0));
 }
 
 /**
@@ -1323,16 +1447,16 @@ function getEditor() {
     return vscode.window.activeTextEditor;
 }
 
-function getDocument() {
+function getDoc() {
     return getEditor().document;
 }
 
-function getDocumentText() {
-    return getDocument().getText();
+function getDocText() {
+    return getDoc().getText();
 }
 
 function getLangId() {
-    return getDocument().languageId;
+    return getDoc().languageId;
 }
 
 /**

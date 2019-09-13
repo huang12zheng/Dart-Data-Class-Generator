@@ -83,7 +83,13 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
 
         // Show a prompt if there are more than one classes in the current editor.
         if (clazzes.length >= 2 && !fromJSON) {
-            clazzes = await showClassChooser(clazzes);
+            const result = await showClassChooser(clazzes);
+            if (result != null) {
+                clazzes = result;
+            } else {
+                showInfo('No classes selected!');
+                return;
+            }
         }
 
         console.log(clazzes);
@@ -100,7 +106,7 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
                         if (r == null) return;
                         else if (r != 'Yes') clazz.toReplace = [];
                     } else {
-                        // When manual overriding is activated.
+                        // When manual overriding is activated ask for every override.
                         let result = [];
                         for (let replacement of clazz.toReplace) {
                             const r = await vscode.window.showQuickPick(['Yes', 'No'], {
@@ -161,20 +167,20 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
 async function showClassChooser(clazzez) {
     const values = clazzez.map((v) => v.name);
 
-    const chosen = await vscode.window.showQuickPick(values, {
+    const r = await vscode.window.showQuickPick(values, {
         placeHolder: 'Please select the classes you want to generate data classes of.',
         canPickMany: true,
     });
 
     let result = [];
-    if (chosen != null) {
-        for (let c of chosen) {
+    if (r != null && r.length > 0) {
+        for (let c of r) {
             for (let clazz of clazzez) {
                 if (clazz.name == c)
                     result.push(clazz);
             }
         }
-    }
+    } else return null;
 
     return result;
 }

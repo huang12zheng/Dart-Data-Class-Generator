@@ -21,6 +21,7 @@ It is also possible to run the command on an existing data class (e.g. when some
 to find the changes and update the class. **Note that this feature is still in beta and custom changes you made to a method may not be preserved.**
 
 **Note:**  
+**Class properties must be declared before the constructor in order for the generator to detect them.**  
 **If the class is a Widget (Stateless or Stateful), only the constructor will be generated. State classes wont be detected.**  
 
 ## Create data classes based on JSON (beta)

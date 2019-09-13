@@ -1,5 +1,5 @@
 const vscode = require('vscode');
-const fs = require("fs");
+const fs = require('fs');
 
 /**
  * @param {vscode.ExtensionContext} context
@@ -18,7 +18,6 @@ async function generateJsonDataClass() {
     let langId = getLangId();
     if (langId == 'dart') {
         let document = getDocText();
-        let lines = document.split('\n');
 
         const name = await vscode.window.showInputBox({
             placeHolder: 'Please type in a class name.'
@@ -55,9 +54,9 @@ async function generateJsonDataClass() {
                 cancellable: false
             }, async function (progress, token) {
                 progress.report({ increment: 0, message: 'Generating Data Classes...' });
+                scrollTo(0);
                 await reader.commitJson(progress, seperate);
                 clearSelection();
-                scrollTo(0);
             });
         } else {
             showError(await reader.error);
@@ -94,7 +93,7 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
                 if (!fromJSON && clazz.isValid && clazz.toReplace.length > 0) {
                     if (!readSetting('override.manual')) {
                         const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                            placeHolder: `Do you want to override changes in ${clazz.name}? Custom changes to the functions may not be preserved!`,
+                            placeHolder: `Do you want to override changes in ${clazz.name}? Custom function implementations may not be preserved!`,
                             canPickMany: false
                         });
 
@@ -1012,13 +1011,16 @@ class JsonReader {
             if (type == null) {
                 if (value instanceof Array) {
                     if (value.length > 0) {
-                        if (k.endsWith('ies')) k = removeEnd(k, 'ies') + 'y';
-                        if (k.endsWith('s')) k = removeEnd(k, 's');
+                        let listType = k;
+                        // Adjust the class name of lists. E.g. a key with items
+                        // becomes a class name of Item.
+                        if (k.endsWith('ies')) listType = removeEnd(k, 'ies') + 'y';
+                        if (k.endsWith('s')) listType = removeEnd(k, 's');
                         const i0 = this.getPrimitive(value[0]);
 
                         if (i0 == null) {
-                            this.getClazzes(value[0], k);
-                            type = 'List<' + capitalize(k) + '>';
+                            this.getClazzes(value[0], listType);
+                            type = 'List<' + capitalize(listType) + '>';
                         } else {
                             type = 'List<' + i0 + '>';
                         }

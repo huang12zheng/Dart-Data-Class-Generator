@@ -377,7 +377,7 @@ class ClassProperty {
 
     get isPrimitive() {
         let t = this.listType;
-        return t == 'String' || t == 'num' || t == 'dynamic' || this.isDouble || this.isInt;
+        return t == 'String' || t == 'num' || t == 'dynamic' || t == 'bool' || this.isDouble || this.isInt;
     }
 
     get defValue() {
@@ -389,6 +389,7 @@ class ClassProperty {
                 case 'num':
                 case 'int': return "0";
                 case 'double': return "0.0";
+                case 'bool': return 'false';
                 case 'dynamic': return "null";
                 default: return `${this.type}()`;
             }

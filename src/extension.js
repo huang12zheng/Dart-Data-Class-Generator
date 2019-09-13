@@ -979,6 +979,8 @@ class JsonReader {
             sType = Number.isInteger(value) ? 'int' : 'double';
         } else if (type === 'string') {
             sType = 'String'
+        } else if (type === 'boolean') {
+            sType = 'bool';
         }
 
         return sType;

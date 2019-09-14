@@ -22,7 +22,7 @@ to find the changes and update the class. **Note that this feature is still in b
 
 **Note:**  
 **Class properties must be declared before the constructor in order for the generator to detect them.**  
-**If the class is a Widget (Stateless or Stateful), only the constructor will be generated. State classes wont be detected.**  
+**If the class is a Widget (Stateless or Stateful) or abstract, only the constructor will be generated. State classes wont be detected.**  
 
 ## Create data classes based on JSON (beta)
 

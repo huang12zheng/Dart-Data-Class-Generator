@@ -203,7 +203,7 @@ class DartClass {
         this.constrStartsAtLine = null;
         /** @type {number} */
         this.constrEndsAtLine = null;
-        this.constrDifferent = false;
+        this.constrDifferent = true;
         this.classContent = '';
         this.toInsert = '';
         /** @type {ClassPart[]} */
@@ -266,6 +266,10 @@ class DartClass {
 
     get isState() {
         return !this.isWidget && this.extend != null && this.extend.startsWith('State<');
+    }
+
+    get isAbstract() {
+        return this.classContent.trimLeft().startsWith('abstract class');
     }
 
     get uniquePropNames() {
@@ -466,7 +470,7 @@ class DataClassGenerator {
             if (readSetting('constructor'))
                 this.insertConstructor(clazz);
 
-            if (!clazz.isWidget) {
+            if (!clazz.isWidget && !clazz.isAbstract) {
                 if (readSetting('copyWidth'))
                     this.insertCopyWith(clazz);
                 if (readSetting('toMap'))
@@ -820,9 +824,9 @@ class DataClassGenerator {
         let brackets = 0;
 
         for (var x = 0; x < lines.length; x++) {
-            let line = lines[x];
-            let linePos = x + 1;
-            let classLine = line.trimLeft().includes('class');
+            const line = lines[x];
+            const linePos = x + 1;
+            const classLine = line.trimLeft().includes('class');
 
             if (classLine) {
                 clazz = new DartClass();
@@ -904,8 +908,8 @@ class DataClassGenerator {
                     }
                 }
 
-                // Detect end of class.
                 clazz.classContent += line;
+                // Detect end of class.
                 if (curlyBrackets != 0) {
                     clazz.classContent += '\n';
                 } else {

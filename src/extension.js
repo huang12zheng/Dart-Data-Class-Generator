@@ -355,12 +355,14 @@ class ClassProperty {
 	 * @param {String} type
 	 * @param {String} name
 	 * @param {number} line
+	 * @param {boolean} isFinal
 	 */
-    constructor(type, name, line = 1) {
+    constructor(type, name, line = 1, isFinal = true) {
         this.type = type;
         this.jsonName = name;
         this.name = toVarName(name);
         this.line = line;
+        this.isFinal = isFinal;
 
         if (name == 'nearestStation') {
             console.log(`${name} ${this.jsonName}`);
@@ -868,24 +870,44 @@ class DataClassGenerator {
                 brackets -= count(line, ')');
 
                 if (!clazz.hasConstructor && curlyBrackets == 1) {
-                    const lineValid = !line.trimLeft().startsWith(clazz.name) && !includesOne(line, ['static', '=', '(', ')', '{', '@']);
+                    // Check if a line is valid to only include real properties.
+                    const lineValid = !line.trimLeft().startsWith(clazz.name) &&
+                                      !includesOne(line, ['static', '{', '}', '=>', 'return', '@']) &&
+                                      // Do not include final values that are assigned a value.
+                                      !includesAll(line, ['final', '=']);
                     if (lineValid) {
                         let type = null;
                         let name = null;
+                        let isFinal = false;
 
-                        for (let word of line.split(' ')) {
+                        const words = line.trim().split(' ');
+                        for (let i = 0; i < words.length; i++) {
+                            const word = words[i];
+                            const isLast = i == words.length - 1;
+
                             if (word.length > 0 && word != '}' && word != '{') {
+                                if (word == 'final') isFinal = true;
+
                                 // Be sure to not include keywords.
                                 if (word != 'final' && word != 'const') {
                                     // If word ends with semicolon => variable name, else type.
-                                    let variable = word.trim().endsWith(';');
-                                    variable ? name = removeEnd(word.trim(), ';') : type = word;
+                                    const isVariable = word.endsWith(';') || (!isLast && (words[i + 1] == '='));
+                                    if (isVariable) {
+                                        if (name == null)
+                                            name = removeEnd(word, ';');
+                                    } else {
+                                        if (type == null) type = word;
+                                        // Types can have gaps => Pair<A, B>,
+                                        // thus append word to type if a name hasn't
+                                        // been detected.
+                                        else if (name == null) type += ' ' + word;
+                                    }
                                 }
                             }
                         }
 
                         if (type != null && name != null) {
-                            clazz.properties.push(new ClassProperty(type, name, linePos));
+                            clazz.properties.push(new ClassProperty(type, name, linePos, isFinal));
                         }
                     }
                 }
@@ -1456,6 +1478,18 @@ function includesOne(source, matches) {
             return true;
     }
     return false;
+}
+
+/**
+* @param {string} source
+* @param {string[]} matches
+*/
+function includesAll(source, matches) {
+    for (let match of matches) {
+        if (!source.includes(match))
+            return false;
+    }
+    return true;
 }
 
 function getEditor() {

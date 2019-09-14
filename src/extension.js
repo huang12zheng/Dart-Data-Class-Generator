@@ -499,18 +499,19 @@ class DataClassGenerator {
      * @param {DartClass} clazz
      */
     findPart(name, p, clazz) {
-        let lines = clazz.classContent.split('\n');
+        const lines = clazz.classContent.split('\n');
+        const part = new ClassPart(name);
         let curlies = 0;
-        let part = new ClassPart(name);
+
         for (let i = 0; i < lines.length; i++) {
-            let line = lines[i];
-            let lineNum = clazz.startsAtLine + i;
+            const line = lines[i];
+            const lineNum = clazz.startsAtLine + i;
 
             curlies += count(line, '{');
             curlies -= count(line, '}');
 
             if (part.startsAt == null && line.trimLeft().startsWith(p.trimLeft())) {
-                let singleLine = line.includes('=>');
+                const singleLine = line.includes('=>');
                 if (curlies == 2 || singleLine) {
                     part.startsAt = lineNum;
                     part.current = line + '\n';
@@ -540,9 +541,10 @@ class DataClassGenerator {
     findConstrParameter(p, clazz) {
         if (clazz.hasConstructor) {
             const lines = clazz.constr.split('\n');
-            for (let l of lines) {
-                if (l.includes(p) && !l.includes('{')) {
-                    return l.trim();
+            for (let line of lines) {
+                for (let w of line.trim().split(' ')) {
+                    // Search for this.[x]. If found, return trimmed line.
+                    if (removeEnd(w, ',') == p) return line.trim();
                 }
             }
         }
@@ -646,7 +648,19 @@ class DataClassGenerator {
         for (let p of props) {
             method += `    '${p.jsonName}': `;
             if (!p.isList) {
-                method += `${p.name}${!p.isPrimitive ? '.toMap()' : ''},\n`;
+                switch(p.type) {
+                    case 'DateTime':
+                        method += `${p.name}.millisecondsSinceEpoch,\n`;
+                        break;
+                    case 'Color':
+                        method += `${p.name}.value,\n`;
+                        break;
+                    case 'IconData':
+                        method += `${p.name}.codePoint,\n`
+                        break;
+                    default:
+                        method += `${p.name}${!p.isPrimitive ? '.toMap()' : ''},\n`;
+                }
             } else {
                 method += `List<dynamic>.from(${p.name}.map((x) => `;
                 if (p.isPrimitive) {
@@ -674,7 +688,19 @@ class DataClassGenerator {
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
             if (!p.isList) {
-                method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '?.toDouble()' : p.isInt ? '?.toInt()' : '') : ''}${defVal ? ` ?? ${p.defValue}` : ''},\n`;
+                switch(p.type) {
+                    case 'DateTime':
+                        method += `DateTime.fromMillisecondsSinceEpoch(map['${p.jsonName}']),\n`;
+                        break;
+                    case 'Color': 
+                        method += `Color(map['${p.jsonName}']),\n`;
+                        break;
+                    case 'IconData':
+                        method += `IconData(map['${p.jsonName}'], fontFamily: 'MaterialIcons'),\n`
+                        break;
+                    default:
+                        method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '?.toDouble()' : p.isInt ? '?.toInt()' : '') : ''}${defVal ? ` ?? ${p.defValue}` : ''},\n`;
+                }
             } else {
                 method += `${p.type}.from(`;
                 if (p.isPrimitive) {

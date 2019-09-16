@@ -539,7 +539,8 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
      */
     findConstrParameter(p, clazz) {
-        if (clazz.hasConstructor) {
+        // Always return null for non-existent or single line constructors.
+        if (clazz.hasConstructor && clazz.constrStartsAtLine != clazz.constrEndsAtLine) {
             const lines = clazz.constr.split('\n');
             for (let line of lines) {
                 for (let w of line.trim().split(' ')) {
@@ -548,6 +549,7 @@ class DataClassGenerator {
                 }
             }
         }
+
         return null;
     }
 
@@ -871,7 +873,13 @@ class DataClassGenerator {
                         if (word == 'class') classNext = true;
                         else if (classNext) {
                             classNext = false;
-                            clazz.name = word;
+                            let name = word;
+
+                            // Remove generics from class name.
+                            if (name.includes('<'))
+                                name = name.substring(0, name.indexOf('<'));
+
+                            clazz.name = name;
                         } else if (word == 'extends') extendsNext = true;
                         else if (extendsNext) {
                             extendsNext = false;

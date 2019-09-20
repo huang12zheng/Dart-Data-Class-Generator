@@ -903,7 +903,7 @@ class DataClassGenerator {
                 brackets += count(line, '(');
                 brackets -= count(line, ')');
 
-                if (!clazz.hasConstructor && curlyBrackets == 1) {
+                if (clazz.constrStartsAtLine == null && curlyBrackets == 1) {
                     // Check if a line is valid to only include real properties.
                     const lineValid = !line.trimLeft().startsWith(clazz.name) &&
                                       !includesOne(line, ['static', '{', '}', '=>', 'return', '@']) &&

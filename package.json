@@ -3,7 +3,7 @@
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
 	"publisher": "BendixMa",
-	"version": "0.1.5",
+	"version": "0.2.0",
 	"engines": {
 		"vscode": "^1.37.0"
 	},
@@ -66,6 +66,15 @@
 						],
 						"default": false,
 						"description": "If true, generates default values for the constructor."
+					},
+					"dart_data_class_generator.constructor.required": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, generates the @required annotiation to every constructor parameter. Note: The generator wont generate default values for the constructor if enabled!"
 					},
 					"dart_data_class_generator.override.manual": {
 						"type": "boolean",
@@ -166,6 +175,15 @@
 						],
 						"default": true,
 						"description": "If true, generates a hashCode function for a data class."
+					},
+					"dart_data_class_generator.hashCode.use_jenkins": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui."
 					}
 				}
 			}

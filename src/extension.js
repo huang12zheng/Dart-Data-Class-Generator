@@ -224,6 +224,10 @@ class DartClass {
         return this.imports.length > 0;
     }
 
+    get formattedImports() {
+        return this.hasImports ? this.imports + '\n' : '';
+    }
+
     get classDetected() {
         return this.startsAtLine != null;
     }
@@ -231,7 +235,7 @@ class DartClass {
     get hasNamedConstructor() {
         if (this.constr != null) {
             return this.constr.replace('const', '').trimLeft().startsWith(this.name + '({');
-        } 
+        }
 
         return true;
     }
@@ -321,7 +325,7 @@ class DartClass {
         }
 
         if (withImports && this.hasImports) {
-            r = this.imports + r;
+            r = this.formattedImports + r;
         }
         return r;
     }
@@ -339,13 +343,7 @@ class DartClass {
 
         // If imports need to be inserted, do it at the top of the file.
         if (this.hasImports && index == 0) {
-            // If document does not contain dart:... imports, add a line break
-            // for proper formatting.
-            const doc = getDocText();
-            if (this.imports.endsWith('\n\n') && doc.includes("import 'dart:"))
-                this.imports = removeEnd(this.imports, '\n');
-
-            editorInsert(editor, 0, this.imports);
+            editorInsert(editor, 0, this.formattedImports);
         }
     }
 }
@@ -468,8 +466,11 @@ class DataClassGenerator {
     }
 
     generateDataClazzes() {
+        const insertConstructor = readSetting('constructor');
+        const required = readSetting('constructor.required');
+
         for (let clazz of this.clazzes) {
-            if (readSetting('constructor'))
+            if (insertConstructor)
                 this.insertConstructor(clazz);
 
             if (!clazz.isWidget && !clazz.isAbstract) {
@@ -490,6 +491,18 @@ class DataClassGenerator {
                 if (readSetting('hashCode'))
                     this.insertHash(clazz);
             }
+
+            // Add non dart:... imports here to keep them properly formatted.
+            if (insertConstructor && required) {
+                if (!this.hasOneImport([
+                    'package:flutter/foundation.dart',
+                    'package:flutter/material.dart',
+                    'package:flutter/cupertino.dart',
+                    'package:flutter/widgets.dart'
+                ], clazz)) {
+                    clazz.imports += "\nimport 'package:flutter/foundation.dart';\n";
+                }
+            }
         }
     }
 
@@ -502,6 +515,7 @@ class DataClassGenerator {
         const lines = clazz.classContent.split('\n');
         const part = new ClassPart(name);
         let curlies = 0;
+        let singleLine = false;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -511,19 +525,22 @@ class DataClassGenerator {
             curlies -= count(line, '}');
 
             if (part.startsAt == null && line.trimLeft().startsWith(p.trimLeft())) {
-                const singleLine = line.includes('=>');
+                if (line.includes('=>')) singleLine = true;
                 if (curlies == 2 || singleLine) {
                     part.startsAt = lineNum;
                     part.current = line + '\n';
-                    if (singleLine) {
-                        part.endsAt = lineNum;
-                    }
                 }
-            } else if (part.startsAt != null && part.endsAt == null && curlies >= 2) {
+            } else if (part.startsAt != null && part.endsAt == null && (curlies == 2 || singleLine)) {
                 part.current += line + '\n';
             } else if (part.startsAt != null && part.endsAt == null && curlies == 1) {
                 part.endsAt = lineNum;
                 part.current += line;
+            }
+
+            // Detect the end of a single line function by searching for the ';' because
+            // a single line function doesn't necessarily only have one single line.
+            if (singleLine && part.startsAt != null && part.endsAt == null && line.trimRight().endsWith(';')) {
+                part.endsAt = lineNum;
             }
         }
 
@@ -558,6 +575,7 @@ class DataClassGenerator {
 	 */
     insertConstructor(clazz) {
         const defVal = readSetting('constructor.default_values');
+        const required = readSetting('constructor.required');
         let constr = '';
         let startBracket = '({';
         let endBracket = '})';
@@ -565,7 +583,7 @@ class DataClassGenerator {
         if (clazz.constr != null) {
             if (clazz.constr.trimLeft().startsWith('const'))
                 constr += 'const ';
-            
+
             // Detect custom constructor brackets and preserve them.
             const fConstr = clazz.constr.replace('const', '').trimLeft();
             if (fConstr.startsWith(clazz.name + '([')) {
@@ -584,9 +602,18 @@ class DataClassGenerator {
         if (clazz.isWidget) constr += '  Key key,\n'
 
         for (let p of clazz.properties) {
-            const parameter = `this.${p.name}`
+            let parameter = `this.${p.name}`
             const fp = this.findConstrParameter(parameter, clazz);
-            constr += `  ${fp == null ? `${parameter}${defVal && (p.isPrimitive || p.isList) ? ` = ${p.defValue}` : ''}` + ',' : fp}\n`;
+            const addDefault = defVal && !required && ((p.isPrimitive || p.isList) && p.type != 'dynamic');
+
+            constr += '  ';
+            if (required) parameter = '@required ' + parameter;
+            if (fp == null) {
+                constr += `${parameter}${addDefault ? ` = ${p.defValue}` : ''}` + ',';
+            } else {
+                constr += fp;
+            }
+            constr += '\n';
         }
 
         const stdConstrEnd = () => {
@@ -650,7 +677,7 @@ class DataClassGenerator {
         for (let p of props) {
             method += `    '${p.jsonName}': `;
             if (!p.isList) {
-                switch(p.type) {
+                switch (p.type) {
                     case 'DateTime':
                         method += `${p.name}.millisecondsSinceEpoch,\n`;
                         break;
@@ -690,18 +717,20 @@ class DataClassGenerator {
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
             if (!p.isList) {
-                switch(p.type) {
+                const addDefault = defVal && p.type != 'dynamic';
+
+                switch (p.type) {
                     case 'DateTime':
                         method += `DateTime.fromMillisecondsSinceEpoch(map['${p.jsonName}']),\n`;
                         break;
-                    case 'Color': 
+                    case 'Color':
                         method += `Color(map['${p.jsonName}']),\n`;
                         break;
                     case 'IconData':
                         method += `IconData(map['${p.jsonName}'], fontFamily: 'MaterialIcons'),\n`
                         break;
                     default:
-                        method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '?.toDouble()' : p.isInt ? '?.toInt()' : '') : ''}${defVal ? ` ?? ${p.defValue}` : ''},\n`;
+                        method += `${!p.isPrimitive ? p.type + '.fromMap(' : ''}map['${p.jsonName}']${!p.isPrimitive ? ')' : ''}${this.fromJSON ? (p.isDouble ? '?.toDouble()' : p.isInt ? '?.toInt()' : '') : ''}${addDefault ? ` ?? ${p.defValue}` : ''},\n`;
                 }
             } else {
                 method += `${p.type}.from(`;
@@ -748,8 +777,8 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertToString(clazz) {
-        let short = clazz.fewProps;
-        let props = clazz.properties;
+        const short = clazz.fewProps;
+        const props = clazz.properties;
         let method = '@override\n';
         method += `String toString() ${!short ? '{\n' : '=>'}`;
         method += `${!short ? '  return' : ''} '` + clazz.name;
@@ -769,9 +798,10 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertEquality(clazz) {
-        let props = clazz.properties;
+        const props = clazz.properties;
         let method = '@override\n';
         method += 'bool operator ==(Object o) {\n';
+        method += '  if (identical(this, o)) return true;\n\n';
         method += '  return o is ' + clazz.name + ' &&\n';
         for (let p of props) {
             method += '    o.' + p.name + ' == ' + p.name;
@@ -787,24 +817,41 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertHash(clazz) {
-        if (!this.hasOneImport([
-            'dart:ui',
-            'package:flutter/material.dart',
-            'package:flutter/cupertino.dart',
-            'package:flutter/widgets.dart'
-        ], clazz)) {
-            clazz.imports += "import 'dart:ui';\n\n";
+        const useJenkins = readSetting('hashCode.use_jenkins');
+        const short = !useJenkins && clazz.fewProps;
+        const props = clazz.properties;
+        let method = '@override\n';
+        method += `int get hashCode ${short ? '=>' : '{\n  return '}`;
+
+        if (useJenkins) {
+            // dart:ui import is required for Jenkins hash.
+            if (!this.hasOneImport([
+                'dart:ui',
+                'package:flutter/material.dart',
+                'package:flutter/cupertino.dart',
+                'package:flutter/widgets.dart'
+            ], clazz)) {
+                clazz.imports += "import 'dart:ui';\n";
+            }
+
+            method += `hashList([\n`;
+            for (let p of props) {
+                method += '    ' + p.name + `,\n`;
+            }
+            method += '  ]);';
+        } else {
+            for (let p of props) {
+                const isFirst = p == props[0];
+                method += `${isFirst && !short ? '' : short ? ' ' : '    '}${p.name}.hashCode`;
+                if (p == props[props.length - 1]) {
+                    method += ';';
+                } else {
+                    method += ` ^${!short ? '\n' : ''}`;
+                }
+            }
         }
 
-        let props = clazz.properties;
-        let method = '@override\n';
-        method += 'int get hashCode {\n';
-        method += '  return hashList([\n';
-        for (let p of props) {
-            method += '    ' + p.name + `,\n`;
-        }
-        method += '  ]);\n';
-        method += '}';
+        if (!short) method += '\n}';
 
         this.appendOrReplace('hashCode', method, 'int get hashCode', clazz);
     }
@@ -906,9 +953,9 @@ class DataClassGenerator {
                 if (clazz.constrStartsAtLine == null && curlyBrackets == 1) {
                     // Check if a line is valid to only include real properties.
                     const lineValid = !line.trimLeft().startsWith(clazz.name) &&
-                                      !includesOne(line, ['static', '{', '}', '=>', 'return', '@']) &&
-                                      // Do not include final values that are assigned a value.
-                                      !includesAll(line, ['final', '=']);
+                        !includesOne(line, ['static', ' set ', ' get ', '{', '}', '=>', 'return', '@']) &&
+                        // Do not include final values that are assigned a value.
+                        !includesAll(line, ['final', '=']);
                     if (lineValid) {
                         let type = null;
                         let name = null;
@@ -1171,16 +1218,16 @@ class JsonReader {
             // E.g. if there are multiple generated classes with
             // the same name, do not include an import of that class.
             if (this.getGeneratedTypeCount(cp.listType) == 1) {
-                hasGenType = true;
                 let imp = `import '${createFileName(cp.listType)}.dart';\n`;
+                if (!hasGenType) {
+                    hasGenType = true;
+                    // Seperate generated file imports from the rest.
+                    imp = '\n' + imp;
+                }
+
                 clazz.imports += imp;
                 imports += imp;
             }
-        }
-
-        if (hasGenType) {
-            imports += '\n';
-            clazz.imports += '\n';
         }
 
         return imports.length > 0 ? imports : null;
@@ -1229,7 +1276,7 @@ class JsonReader {
                     f = removeEnd(f, '\n\n');
                     await getEditor().edit(editor => {
                         editorReplace(editor, 0, null, f);
-                        editorInsert(editor, 0, file.clazz.imports);
+                        editorInsert(editor, 0, file.clazz.formattedImports);
                     });
                 }
             }

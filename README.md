@@ -47,6 +47,7 @@ You can customize the generator to only generate the functions you want in your 
 
 * `dart_data_class_generator.fromMap.default_values`: If true, checks if a field is null when deserializing and provides a non-null default value.
 * `dart_data_class_generator.constructor.default_values`: If true, generates default values for the constructor.
+* `dart_data_class_generator.constructor.required`: If true, generates @required annotation for every constructor parameter. Note: The generator wont generate default values for the constructor if enabled!
 * `dart_data_class_generator.json.seperate`: Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file.
 * `dart_data_class_generator.override.manual`: If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator.
 * `dart_data_class_generator.constructor`: If true, generates a constructor for a data class.
@@ -58,8 +59,13 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.toString`: If true, generates a toString function for a data class.
 * `dart_data_class_generator.equality`: If true, generates a value equality function for a data class.
 * `dart_data_class_generator.hashCode`: If true, generates a hashCode function for a data class.
+* `dart_data_class_generator.hashCode.use_jenkins`: If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui.
 
 ## Release Notes
 
 ### 0.1.0
 Initial release (Beta).
+
+### 0.2.0
+Added support for @required annotation.  
+Changed the default hashCode implementation to bitwise operator.

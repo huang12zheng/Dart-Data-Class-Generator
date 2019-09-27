@@ -82,5 +82,5 @@ Initial release (Beta).
 Added support for @required annotation.  
 Changed the default hashCode implementation to bitwise operator.
 
-## 0.3.0
+### 0.3.0
 Added quick fixes

@@ -77,20 +77,20 @@ async function generateJsonDataClass() {
     }
 }
 
-async function generateDataClass(text = getDocText(), fromJSON = false) {
+async function generateDataClass(text = getDocText()) {
     if (getLangId() == 'dart') {
-        const generator = new DataClassGenerator(text, null, fromJSON);
+        const generator = new DataClassGenerator(text, null);
         let clazzes = generator.clazzes;
 
         // Reverse clazzes when converting from JSON and clazz length greater than 2 => 
         // dev chose single file option, to make sure classes are inserted in correct
         // order and not reversed.
-        if (fromJSON && clazzes.length >= 2) {
+        if (clazzes.length >= 2) {
             clazzes = clazzes.reverse();
         }
 
         // Show a prompt if there are more than one classes in the current editor.
-        if (clazzes.length >= 2 && !fromJSON) {
+        if (clazzes.length >= 2) {
             const result = await showClassChooser(clazzes);
             if (result != null) {
                 clazzes = result;
@@ -104,7 +104,7 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
 
         if (clazzes.length > 0) {
             for (let clazz of clazzes) {
-                if (!fromJSON && clazz.isValid && clazz.toReplace.length > 0) {
+                if (clazz.isValid && clazz.toReplace.length > 0) {
                     if (!readSetting('override.manual')) {
                         const r = await vscode.window.showQuickPick(['Yes', 'No'], {
                             placeHolder: `Do you want to override changes in ${clazz.name}? Custom function implementations may not be preserved!`,
@@ -143,7 +143,7 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
                         showInfo(`No changes detected for class ${clazz.name}`);
                     } else {
                         if (clazz.isValid) {
-                            clazz.replace(editor, i, fromJSON);
+                            clazz.replace(editor, i);
                         } else if (clazz.issue != null) {
                             showError(clazz.issue);
                         }
@@ -344,18 +344,19 @@ class DartClass {
         if (withImports && this.hasImports) {
             r = this.formattedImports + r;
         }
-        return r;
+
+        return removeEnd(r, '\n');
     }
 
 	/**
      * @param {vscode.TextEditorEdit} editor
 	 * @param {number} [index]
 	 */
-    replace(editor, index, fromJSON = false) {
+    replace(editor, index) {
         editorReplace(editor,
             this.startsAtLine - 1,
             this.endsAtLine,
-            this.getClassReplacement(false) + (fromJSON ? '\n' : '')
+            this.getClassReplacement(false)
         );
 
         // If imports need to be inserted, do it at the top of the file.
@@ -1293,7 +1294,7 @@ class JsonReader {
             } else {
                 // Insert in current file when JSON should not be seperated.
                 for (let clazz of generator.clazzes) {
-                    f += clazz.getClassReplacement(false) + '\n';
+                    f += clazz.getClassReplacement(false) + '\n\n';
                 }
 
                 if (isLast) {
@@ -1432,6 +1433,7 @@ class CodeActions {
      * @param {vscode.TextDocument} document
      */
     replaceClass(clazz, document) {
+        console.log(clazz.getClassReplacement(false));
         const edit = new vscode.WorkspaceEdit();
         edit.replace(document.uri, new vscode.Range(
             new vscode.Position((clazz.startsAtLine - 1), 0),

@@ -379,10 +379,6 @@ class ClassProperty {
         this.name = toVarName(name);
         this.line = line;
         this.isFinal = isFinal;
-
-        if (name == 'nearestStation') {
-            console.log(`${name} ${this.jsonName}`);
-        }
     }
 
     get isList() {
@@ -1383,7 +1379,6 @@ class CodeActions {
         const generator = new DataClassGenerator(document.getText(), null, false, 'constructor');
         const fix = new vscode.CodeAction('Generate constructor', vscode.CodeActionKind.QuickFix);
         const c = generator.clazzes[0];
-        console.log(c);
         fix.edit = this.replaceClass(c, document);
         return fix;
     }
@@ -1433,7 +1428,6 @@ class CodeActions {
      * @param {vscode.TextDocument} document
      */
     replaceClass(clazz, document) {
-        console.log(clazz.getClassReplacement(false));
         const edit = new vscode.WorkspaceEdit();
         edit.replace(document.uri, new vscode.Range(
             new vscode.Position((clazz.startsAtLine - 1), 0),

@@ -30,6 +30,7 @@
 		"Programming Languages", "Other"
 	],
 	"activationEvents": [
+		"onLanguage:dart",
 		"onCommand:dart_data_class.generate.from_props",
 		"onCommand:dart_data_class.generate.from_json"
 	],
@@ -49,6 +50,15 @@
 			{
 				"title": "Dart Data Class Generator configuration",
 				"properties": {
+					"dart_data_class_generator.quick_fixes": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, enables quick fixes to quickly generate data classes or specific methods only."
+					},
 					"dart_data_class_generator.fromMap.default_values": {
 						"type": "boolean",
 						"enum": [
@@ -104,14 +114,14 @@
 						"default": true,
 						"description": "If true, generates a constructor for a data class."
 					},
-					"dart_data_class_generator.copyWidth": {
+					"dart_data_class_generator.copyWith": {
 						"type": "boolean",
 						"enum": [
 							true,
 							false
 						],
 						"default": true,
-						"description": "If true, generates a copyWidth function for a data class."
+						"description": "If true, generates a copyWith function for a data class."
 					},
 					"dart_data_class_generator.toMap": {
 						"type": "boolean",

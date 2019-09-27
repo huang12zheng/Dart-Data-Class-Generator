@@ -12,6 +12,15 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('dart_data_class.generate.from_json', () => {
         generateJsonDataClass();
     }));
+
+    context.subscriptions.push(vscode.languages.registerCodeActionsProvider({
+        language: 'dart',
+        scheme: 'file'
+    }, new CodeActions(), {
+        providedCodeActionKinds: [
+            vscode.CodeActionKind.QuickFix
+        ],
+    }));
 }
 
 async function generateJsonDataClass() {
@@ -72,7 +81,6 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
     if (getLangId() == 'dart') {
         const generator = new DataClassGenerator(text, null, fromJSON);
         let clazzes = generator.clazzes;
-        let issues = [];
 
         // Reverse clazzes when converting from JSON and clazz length greater than 2 => 
         // dev chose single file option, to make sure classes are inserted in correct
@@ -134,7 +142,11 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
                     if (clazz.toInsert.length == 0 && clazz.toReplace.length == 0 && !clazz.constrDifferent) {
                         showInfo(`No changes detected for class ${clazz.name}`);
                     } else {
-                        clazz.isValid ? clazz.replace(editor, i, fromJSON) : issues.push(clazz);
+                        if (clazz.isValid) {
+                            clazz.replace(editor, i, fromJSON);
+                        } else if (clazz.issue != null) {
+                            showError(clazz.issue);
+                        }
                     }
                 }
             });
@@ -143,15 +155,6 @@ async function generateDataClass(text = getDocText(), fromJSON = false) {
         } else {
             showError('No convertable dart classes were detected!');
             return null;
-        }
-
-        // Show errors that may have occured.
-        for (let clazz of issues.reverse()) {
-            const msg = clazz.name + ' couldn\'t be converted to a data class: ';
-            if (!clazz.hasProperties) showError(msg + 'Class must have at least one property!');
-            else if (!clazz.hasEnding) showError(msg + 'Class has no ending!');
-            else if (!clazz.uniquePropNames) showError(msg + 'Class doesn\'t have unique property names!');
-            else showError(removeEnd(msg, ': ') + '.');
         }
 
         return clazzes;
@@ -225,7 +228,7 @@ class DartClass {
     }
 
     get formattedImports() {
-        return this.hasImports ? this.imports + '\n' : '';
+        return this.hasImports ? removeStart(this.imports, '\n') + '\n' : '';
     }
 
     get classDetected() {
@@ -274,6 +277,20 @@ class DartClass {
 
     get isAbstract() {
         return this.classContent.trimLeft().startsWith('abstract class');
+    }
+
+    get issue() {
+        const def = this.name + ' couldn\'t be converted to a data class: '
+        let msg = def;
+        if (!this.hasProperties) msg = msg + 'Class must have at least one property!';
+        else if (!this.hasEnding) msg = msg + 'Class has no ending!';
+        else if (!this.uniquePropNames) msg = msg + 'Class doesn\'t have unique property names!';
+        else msg = removeEnd(msg, ': ') + '.';
+        if (msg != def) {
+            return msg;
+        } else {
+            return null;
+        }
     }
 
     get uniquePropNames() {
@@ -440,15 +457,17 @@ class ClassPart {
 }
 
 class DataClassGenerator {
-	/**
-	 * @param {String} text
-	 * @param {DartClass[]} clazzes
-	 * @param {boolean} fromJSON
-	 */
-    constructor(text, clazzes = null, fromJSON = false) {
+    /**
+     * @param {String} text
+     * @param {DartClass[]} clazzes
+     * @param {boolean} fromJSON
+     * @param {string} part
+     */
+    constructor(text, clazzes = null, fromJSON = false, part = null) {
         this.text = text;
         this.fromJSON = fromJSON;
         this.clazzes = clazzes == null ? this.getClasses() : clazzes;
+        this.part = part;
         this.generateDataClazzes();
     }
 
@@ -465,8 +484,15 @@ class DataClassGenerator {
         return false;
     }
 
+    /**
+     * @param {string} part
+     */
+    isPart(part) {
+        return this.part == null ? true : this.part == part;
+    }
+
     generateDataClazzes() {
-        const insertConstructor = readSetting('constructor');
+        const insertConstructor = readSetting('constructor') && this.isPart('constructor');
         const required = readSetting('constructor.required');
 
         for (let clazz of this.clazzes) {
@@ -474,21 +500,21 @@ class DataClassGenerator {
                 this.insertConstructor(clazz);
 
             if (!clazz.isWidget && !clazz.isAbstract) {
-                if (readSetting('copyWidth'))
+                if (readSetting('copyWith') && this.isPart('copyWith'))
                     this.insertCopyWith(clazz);
-                if (readSetting('toMap'))
+                if (readSetting('toMap') && this.isPart('serialization'))
                     this.insertToMap(clazz);
-                if (readSetting('fromMap'))
+                if (readSetting('fromMap') && this.isPart('serialization'))
                     this.insertFromMap(clazz);
-                if (readSetting('toJson'))
+                if (readSetting('toJson') && this.isPart('serialization'))
                     this.insertToJson(clazz);
-                if (readSetting('fromJson'))
+                if (readSetting('fromJson') && this.isPart('serialization'))
                     this.insertFromJson(clazz);
-                if (readSetting('toString'))
+                if (readSetting('toString') && this.isPart('toString'))
                     this.insertToString(clazz);
-                if (readSetting('equality'))
+                if (readSetting('equality') && this.isPart('equality'))
                     this.insertEquality(clazz);
-                if (readSetting('hashCode'))
+                if (readSetting('hashCode') && this.isPart('equality'))
                     this.insertHash(clazz);
             }
 
@@ -508,10 +534,10 @@ class DataClassGenerator {
 
     /**
      * @param {string} name
-     * @param {string} p
+     * @param {string} finder
      * @param {DartClass} clazz
      */
-    findPart(name, p, clazz) {
+    findPart(name, finder, clazz) {
         const lines = clazz.classContent.split('\n');
         const part = new ClassPart(name);
         let curlies = 0;
@@ -524,7 +550,7 @@ class DataClassGenerator {
             curlies += count(line, '{');
             curlies -= count(line, '}');
 
-            if (part.startsAt == null && line.trimLeft().startsWith(p.trimLeft())) {
+            if (part.startsAt == null && line.trimLeft().startsWith(finder.trimLeft())) {
                 if (line.includes('=>')) singleLine = true;
                 if (curlies == 2 || singleLine) {
                     part.startsAt = lineNum;
@@ -755,9 +781,8 @@ class DataClassGenerator {
             clazz.imports += "import 'dart:convert';\n"
         }
 
-        if (clazz.classContent.includes('String toJson()')) return;
-        let method = 'String toJson() => json.encode(toMap());';
-        this.append(method, clazz);
+        const method = 'String toJson() => json.encode(toMap());';
+        this.appendOrReplace('toJson', method, 'String toJson()', clazz);
     }
 
 	/**
@@ -768,9 +793,8 @@ class DataClassGenerator {
             clazz.imports += "import 'dart:convert';\n"
         }
 
-        if (clazz.classContent.includes(`static ${clazz.name} fromJson(`)) return;
-        let method = `static ${clazz.name} fromJson(String source) => fromMap(json.decode(source));`;
-        this.append(method, clazz);
+        const method = `static ${clazz.name} fromJson(String source) => fromMap(json.decode(source));`;
+        this.appendOrReplace('fromJson', method, `static ${clazz.name} fromJson(String source)`, clazz);
     }
 
 	/**
@@ -1284,6 +1308,171 @@ class JsonReader {
     }
 }
 
+class CodeActions {
+    /**
+     * @param {vscode.TextDocument} document
+     * @param {vscode.Range} range
+     */
+    provideCodeActions(document, range) {
+        const className = this.getClass(document, range);
+        if (className == null) {
+            return;
+        }
+
+        if (!readSetting('quick_fixes')) {
+            return null;
+        }
+
+        const generator = new DataClassGenerator(document.getText());
+        let clazz = null;
+        for (let c of generator.clazzes) {
+            if (c.name == className) {
+                clazz = c;
+            }
+        }
+
+
+        if (clazz == null || !clazz.isValid) {
+            return;
+        }
+
+        const codeActions = [];
+
+        codeActions.push(this.createDataClassFix(clazz, document));
+
+        if (readSetting('constructor')) {
+            codeActions.push(this.createConstructorFix(document));
+        }
+
+        if (!clazz.isWidget && !clazz.isAbstract) {
+            if (readSetting('copyWith')) {
+                codeActions.push(this.createCopyWithFix(document));
+            }
+
+            if (readSettings(['toMap', 'fromMap', 'toJson', 'fromJson'])) {
+                codeActions.push(this.createSerializationFix(document));
+            }
+
+            if (readSetting('toString')) {
+                codeActions.push(this.createToStringFix(document));
+            }
+
+            if (readSettings(['equality', 'hashCode'])) {
+                codeActions.push(this.createEqualityFix(document));
+            }
+        }
+
+        return codeActions;
+    }
+
+    /**
+     * @param {DartClass} clazz
+     * @param {vscode.TextDocument} document
+     */
+    createDataClassFix(clazz, document) {
+        const fix = new vscode.CodeAction('Generate data class', vscode.CodeActionKind.QuickFix);
+        fix.edit = this.replaceClass(clazz, document);
+        return fix;
+    }
+
+    /**
+    * @param {vscode.TextDocument} document
+    */
+    createConstructorFix(document) {
+        const generator = new DataClassGenerator(document.getText(), null, false, 'constructor');
+        const fix = new vscode.CodeAction('Generate constructor', vscode.CodeActionKind.QuickFix);
+        const c = generator.clazzes[0];
+        console.log(c);
+        fix.edit = this.replaceClass(c, document);
+        return fix;
+    }
+
+    /**
+     * @param {vscode.TextDocument} document
+     */
+    createCopyWithFix(document) {
+        const generator = new DataClassGenerator(document.getText(), null, false, 'copyWith');
+        const fix = new vscode.CodeAction('Generate copyWith', vscode.CodeActionKind.QuickFix);
+        fix.edit = this.replaceClass(generator.clazzes[0], document);
+        return fix;
+    }
+
+    /**
+     * @param {vscode.TextDocument} document
+     */
+    createSerializationFix(document) {
+        const generator = new DataClassGenerator(document.getText(), null, false, 'serialization');
+        const fix = new vscode.CodeAction('Generate JSON serialization ', vscode.CodeActionKind.QuickFix);
+        fix.edit = this.replaceClass(generator.clazzes[0], document);
+        return fix;
+    }
+
+    /**
+    * @param {vscode.TextDocument} document
+    */
+    createToStringFix(document) {
+        const generator = new DataClassGenerator(document.getText(), null, false, 'toString');
+        const fix = new vscode.CodeAction('Generate toString', vscode.CodeActionKind.QuickFix);
+        fix.edit = this.replaceClass(generator.clazzes[0], document);
+        return fix;
+    }
+
+    /**
+     * @param {vscode.TextDocument} document
+     */
+    createEqualityFix(document) {
+        const generator = new DataClassGenerator(document.getText(), null, false, 'equality');
+        const fix = new vscode.CodeAction('Generate equality', vscode.CodeActionKind.QuickFix);
+        fix.edit = this.replaceClass(generator.clazzes[0], document);
+        return fix;
+    }
+
+    /**
+     * @param {DartClass} clazz
+     * @param {vscode.TextDocument} document
+     */
+    replaceClass(clazz, document) {
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(
+            new vscode.Position((clazz.startsAtLine - 1), 0),
+            new vscode.Position(clazz.endsAtLine, 1)
+        ), clazz.getClassReplacement(false));
+
+        // If imports need to be inserted, do it at the top of the file.
+        if (clazz.hasImports) {
+            edit.insert(document.uri,
+                new vscode.Position(0, 0),
+                clazz.formattedImports
+            );
+        }
+
+        return edit;
+    }
+
+    /**
+     * @param {vscode.TextDocument} document
+     * @param {vscode.Range} range
+     */
+    getClass(document, range) {
+        const line = document.lineAt(range.start).text.trim();
+        if (line.startsWith('class') || line.startsWith('abstract class')) {
+            const words = line.split(' ');
+            for (let word of words) {
+                if (word != 'class' && word != 'abstract' && word != '{') {
+                    if (word.length > 0 && word[0] == word[0].toUpperCase()) {
+                        if (word.includes('<')) {
+                            return word.substring(0, word.indexOf('<'));
+                        }
+
+                        return word;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+}
+
 /**
  * @param {string} name
  */
@@ -1486,13 +1675,20 @@ function capitalize(source) {
 
 /**
  * @param {string} source
+ * @param {string} start
+ */
+function removeStart(source, start) {
+    return source.startsWith(start) ? source.substring(start.length, source.length) : source;
+}
+
+/**
+ * @param {string} source
  * @param {string} end
  */
 function removeEnd(source, end) {
     const pos = (source.length - end.length);
     if (source.endsWith(end)) {
-        let s = source.substring(0, pos);
-        return s;
+        return source.substring(0, pos);
     }
     return source;
 }
@@ -1597,6 +1793,20 @@ function readSetting(key) {
 }
 
 /**
+ * @param {string[]} keys
+ * @param {boolean} passAll
+ */
+function readSettings(keys, passAll = false) {
+    let result = passAll ? true : false;
+    for (let key of keys) {
+        if (readSetting(key) == (passAll ? false : true)) {
+            result = !result;
+        }
+    }
+    return result;
+}
+
+/**
  * @param {string} msg
  */
 function showError(msg) {
@@ -1616,5 +1826,37 @@ function deactivate() { }
 
 module.exports = {
     activate,
-    deactivate
+    deactivate,
+    generateDataClass,
+    generateJsonDataClass,
+    DartFile,
+    DartClass,
+    DataClassGenerator,
+    JsonReader,
+    ClassPart,
+    ClassProperty,
+    writeFile,
+    getCurrentPath,
+    toVarName,
+    createFileName,
+    editorInsert,
+    editorReplace,
+    editorDelete,
+    capitalize,
+    scrollTo,
+    clearSelection,
+    removeEnd,
+    indent,
+    count,
+    areStrictEqual,
+    removeAll,
+    includesOne,
+    includesAll,
+    getEditor,
+    getDoc,
+    getDocText,
+    getLangId,
+    readSetting,
+    showError,
+    showInfo
 }

@@ -12,13 +12,24 @@ The generator can generate the constructor, copyWidth, toMap, fromMap, toJson, f
 
 ### **How?**
 
+You can generate data classes either by the quick fix dialog or by running a command. In the quick fix dialog you have the option to not only generate whole data classes but also only specific methods. The command has the advantage of being able to generate multiple classes at the same time and also giving you error messages if there are errors in your class that make it impossible for the generator to work.
+
+#### **Quick fix**
+
+- Create a class with properties.
+- Place your cursor on the first line of the class where it is declared.
+- Hit **CTRL + .** to open the quick fix dialog.
+- Choose one of the available options.
+
+#### **Command**
+
 - Create a class with properties.
 - Hit **CTRL + P** to open the command dialog.
 - Search for **Dart Data Class Generator: Generate from class properties** and hit enter.
 - When there are multiple classes in the current file, choose the ones you'd like to create data classes of in the dialog.
 
-It is also possible to run the command on an existing data class (e.g. when some parameters changed). The generator will then try 
-to find the changes and update the class. **Note that this feature is still in beta and custom changes you made to a method may not be preserved.**
+It is also possible to run the generator on an existing data class (e.g. when some parameters changed). The generator will then try 
+to find the changes and replace the class with its updated version. **Note that custom changes will be overriden**.
 
 **Note:**  
 **Class properties must be declared before the constructor in order for the generator to detect them.**  
@@ -45,6 +56,7 @@ to find the changes and update the class. **Note that this feature is still in b
 
 You can customize the generator to only generate the functions you want in your settings file.
 
+* `dart_data_class_generator.quick_fixes`: If true, enables quick fixes to quickly generate data classes or specific methods only.
 * `dart_data_class_generator.fromMap.default_values`: If true, checks if a field is null when deserializing and provides a non-null default value.
 * `dart_data_class_generator.constructor.default_values`: If true, generates default values for the constructor.
 * `dart_data_class_generator.constructor.required`: If true, generates @required annotation for every constructor parameter. Note: The generator wont generate default values for the constructor if enabled!
@@ -69,3 +81,6 @@ Initial release (Beta).
 ### 0.2.0
 Added support for @required annotation.  
 Changed the default hashCode implementation to bitwise operator.
+
+## 0.3.0
+Added quick fixes

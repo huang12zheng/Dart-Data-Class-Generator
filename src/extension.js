@@ -1306,12 +1306,18 @@ class JsonReader {
 }
 
 class CodeActions {
+    constructor() {
+        this.clazz = new DartClass();
+        this.document = getDoc();
+    }
+
     /**
      * @param {vscode.TextDocument} document
      * @param {vscode.Range} range
      */
     provideCodeActions(document, range) {
-        const className = this.getClass(document, range);
+        this.document = document;
+        const className = this.getClass(range);
         if (className == null) {
             return;
         }
@@ -1321,122 +1327,111 @@ class CodeActions {
         }
 
         const generator = new DataClassGenerator(document.getText());
-        let clazz = null;
         for (let c of generator.clazzes) {
             if (c.name == className) {
-                clazz = c;
+                this.clazz = c;
             }
         }
 
 
-        if (clazz == null || !clazz.isValid) {
+        if (this.clazz == null || !this.clazz.isValid) {
             return;
         }
 
         const codeActions = [];
 
-        codeActions.push(this.createDataClassFix(clazz, document));
+        codeActions.push(this.createDataClassFix(this.clazz));
 
         if (readSetting('constructor')) {
-            codeActions.push(this.createConstructorFix(document));
+            codeActions.push(this.createConstructorFix());
         }
 
-        if (!clazz.isWidget && !clazz.isAbstract) {
+        if (!this.clazz.isWidget && !this.clazz.isAbstract) {
             if (readSetting('copyWith')) {
-                codeActions.push(this.createCopyWithFix(document));
+                codeActions.push(this.createCopyWithFix());
             }
 
             if (readSettings(['toMap', 'fromMap', 'toJson', 'fromJson'])) {
-                codeActions.push(this.createSerializationFix(document));
+                codeActions.push(this.createSerializationFix());
             }
 
             if (readSetting('toString')) {
-                codeActions.push(this.createToStringFix(document));
+                codeActions.push(this.createToStringFix());
             }
 
             if (readSettings(['equality', 'hashCode'])) {
-                codeActions.push(this.createEqualityFix(document));
+                codeActions.push(this.createEqualityFix());
             }
         }
 
         return codeActions;
     }
 
+
+
     /**
      * @param {DartClass} clazz
-     * @param {vscode.TextDocument} document
      */
-    createDataClassFix(clazz, document) {
+    createDataClassFix(clazz) {
         const fix = new vscode.CodeAction('Generate data class', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.replaceClass(clazz, document);
+        fix.edit = this.replaceClass(clazz);
         return fix;
     }
 
     /**
-    * @param {vscode.TextDocument} document
-    */
-    createConstructorFix(document) {
-        const generator = new DataClassGenerator(document.getText(), null, false, 'constructor');
-        const fix = new vscode.CodeAction('Generate constructor', vscode.CodeActionKind.QuickFix);
-        const c = generator.clazzes[0];
-        fix.edit = this.replaceClass(c, document);
-        return fix;
-    }
-
-    /**
-     * @param {vscode.TextDocument} document
+     * @param {string} part
+     * @param {string} description
      */
-    createCopyWithFix(document) {
-        const generator = new DataClassGenerator(document.getText(), null, false, 'copyWith');
-        const fix = new vscode.CodeAction('Generate copyWith', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.replaceClass(generator.clazzes[0], document);
+    constructQuickFix(part, description) {
+        const generator = new DataClassGenerator(this.document.getText(), null, false, part);
+        const fix = new vscode.CodeAction(description, vscode.CodeActionKind.QuickFix);
+        fix.edit = this.replaceClass(this.findQuickFixClazz(generator));
         return fix;
     }
 
+    createConstructorFix() {
+        return this.constructQuickFix('constructor', 'Generate constructor');
+    }
+
+    createCopyWithFix() {
+        return this.constructQuickFix('copyWith', 'Generate copyWith');
+    }
+
+    createSerializationFix() {
+        return this.constructQuickFix('serialization', 'Generate JSON serialization');
+    }
+
+    createToStringFix() {
+        return this.constructQuickFix('toString', 'Generate toString');
+    }
+
+    createEqualityFix() {
+        return this.constructQuickFix('equality', 'Generate equality');
+    }
+
     /**
-     * @param {vscode.TextDocument} document
+     * @param {DataClassGenerator} generator
      */
-    createSerializationFix(document) {
-        const generator = new DataClassGenerator(document.getText(), null, false, 'serialization');
-        const fix = new vscode.CodeAction('Generate JSON serialization ', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.replaceClass(generator.clazzes[0], document);
-        return fix;
-    }
-
-    /**
-    * @param {vscode.TextDocument} document
-    */
-    createToStringFix(document) {
-        const generator = new DataClassGenerator(document.getText(), null, false, 'toString');
-        const fix = new vscode.CodeAction('Generate toString', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.replaceClass(generator.clazzes[0], document);
-        return fix;
-    }
-
-    /**
-     * @param {vscode.TextDocument} document
-     */
-    createEqualityFix(document) {
-        const generator = new DataClassGenerator(document.getText(), null, false, 'equality');
-        const fix = new vscode.CodeAction('Generate equality', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.replaceClass(generator.clazzes[0], document);
-        return fix;
+    findQuickFixClazz(generator) {
+        for (let clazz of generator.clazzes) {
+            if (clazz.name == this.clazz.name)
+                return clazz;
+        }
     }
 
     /**
      * @param {DartClass} clazz
-     * @param {vscode.TextDocument} document
      */
-    replaceClass(clazz, document) {
+    replaceClass(clazz) {
         const edit = new vscode.WorkspaceEdit();
-        edit.replace(document.uri, new vscode.Range(
+        edit.replace(this.document.uri, new vscode.Range(
             new vscode.Position((clazz.startsAtLine - 1), 0),
             new vscode.Position(clazz.endsAtLine, 1)
         ), clazz.getClassReplacement(false));
 
         // If imports need to be inserted, do it at the top of the file.
         if (clazz.hasImports) {
-            edit.insert(document.uri,
+            edit.insert(this.document.uri,
                 new vscode.Position(0, 0),
                 clazz.formattedImports
             );
@@ -1446,11 +1441,10 @@ class CodeActions {
     }
 
     /**
-     * @param {vscode.TextDocument} document
      * @param {vscode.Range} range
      */
-    getClass(document, range) {
-        const line = document.lineAt(range.start).text.trim();
+    getClass(range) {
+        const line = this.document.lineAt(range.start).text.trim();
         if (line.startsWith('class') || line.startsWith('abstract class')) {
             const words = line.split(' ');
             for (let word of words) {

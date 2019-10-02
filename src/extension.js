@@ -16,7 +16,7 @@ function activate(context) {
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider({
         language: 'dart',
         scheme: 'file'
-    }, new CodeActions(), {
+    }, new DataClassCodeActions(), {
         providedCodeActionKinds: [
             vscode.CodeActionKind.QuickFix
         ],
@@ -1305,7 +1305,7 @@ class JsonReader {
     }
 }
 
-class CodeActions {
+class DataClassCodeActions {
     constructor() {
         this.clazz = new DartClass();
         this.document = getDoc();

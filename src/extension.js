@@ -623,7 +623,7 @@ class DataClassGenerator {
         for (let p of clazz.properties) {
             let parameter = `this.${p.name}`
             const fp = this.findConstrParameter(parameter, clazz);
-            const addDefault = defVal && !required && ((p.isPrimitive || p.isList) && p.type != 'dynamic');
+            const addDefault = endBracket != ')' && defVal && !required && ((p.isPrimitive || p.isList) && p.type != 'dynamic');
 
             constr += '  ';
             if (required) parameter = '@required ' + parameter;
@@ -1328,8 +1328,6 @@ class DataClassCodeActions {
         this.line = document.lineAt(range.start).text;
         this.generator = new DataClassGenerator(document.getText());
         this.clazz = this.getClass();
-
-        console.log(this.clazz);
 
         if (this.clazz == null) {
             return;

@@ -609,16 +609,12 @@ class DataClassGenerator {
 
             // Detect custom constructor brackets and preserve them.
             const fConstr = clazz.constr.replace('const', '').trimLeft();
-            if (fConstr.startsWith(clazz.name + '([')) {
-                startBracket = '([';
-                endBracket = '])';
-            } else if (fConstr.startsWith(clazz.name + '({')) {
-                startBracket = '({';
-                endBracket = '})';
-            } else if (fConstr.startsWith(clazz.name + '(')) {
-                startBracket = '(';
-                endBracket = ')';
-            }
+            if (fConstr.startsWith(clazz.name + '([')) startBracket = '([';
+            else if (fConstr.startsWith(clazz.name + '({')) startBracket = '({';
+            else startBracket = '(';
+            if (fConstr.includes('])')) endBracket = '])';
+            else if (fConstr.includes('})')) endBracket = '})';
+            else endBracket = ')';
         }
 
         constr += clazz.name + startBracket + '\n';
@@ -924,7 +920,6 @@ class DataClassGenerator {
         for (let x = 0; x < lines.length; x++) {
             const line = lines[x];
             const linePos = x + 1;
-
             // Make sure to look for 'class ' with the space in order to allow
             // fields that contain the word 'class' as in classifire.
             // issue: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/2
@@ -1312,7 +1307,10 @@ class JsonReader {
 class DataClassCodeActions {
     constructor() {
         this.clazz = new DartClass();
+        this.generator = null;
         this.document = getDoc();
+        this.line = '';
+        this.lineNumber = 0;
     }
 
     /**
@@ -1320,58 +1318,59 @@ class DataClassCodeActions {
      * @param {vscode.Range} range
      */
     provideCodeActions(document, range) {
-        this.document = document;
-        const className = this.getClass(range);
-        if (className == null) {
-            return;
-        }
-
         if (!readSetting('quick_fixes')) {
-            return null;
-        }
-
-        const generator = new DataClassGenerator(document.getText());
-        for (let c of generator.clazzes) {
-            if (c.name == className) {
-                this.clazz = c;
-            }
-        }
-
-
-        if (this.clazz == null || !this.clazz.isValid) {
             return;
         }
 
         const codeActions = [];
+        this.document = document;
+        this.lineNumber = range.start.line + 1;
+        this.line = document.lineAt(range.start).text;
+        this.generator = new DataClassGenerator(document.getText());
+        this.clazz = this.getClass();
 
-        codeActions.push(this.createDataClassFix(this.clazz));
+        console.log(this.clazz);
 
-        if (readSetting('constructor')) {
-            codeActions.push(this.createConstructorFix());
+        if (this.clazz == null) {
+            return;
         }
 
+        const requiredFix = this.createMakeRequiredFix();
+        if (requiredFix != null) codeActions.push(requiredFix);
+
+        const validLine = this.lineNumber == this.clazz.startsAtLine || this.lineNumber == this.clazz.constrStartsAtLine;
+        if (!validLine) return codeActions;
+
+        if (readSetting('constructor'))
+            codeActions.push(this.createConstructorFix());
+
         if (!this.clazz.isWidget && !this.clazz.isAbstract) {
-            if (readSetting('copyWith')) {
+            codeActions.splice(0, 0, this.createDataClassFix(this.clazz));
+
+            if (readSetting('copyWith'))
                 codeActions.push(this.createCopyWithFix());
-            }
-
-            if (readSettings(['toMap', 'fromMap', 'toJson', 'fromJson'])) {
+            if (readSettings(['toMap', 'fromMap', 'toJson', 'fromJson']))
                 codeActions.push(this.createSerializationFix());
-            }
-
-            if (readSetting('toString')) {
+            if (readSetting('toString'))
                 codeActions.push(this.createToStringFix());
-            }
-
-            if (readSettings(['equality', 'hashCode'])) {
+            if (readSettings(['equality', 'hashCode']))
                 codeActions.push(this.createEqualityFix());
-            }
         }
 
         return codeActions;
     }
 
-
+    /**
+     * @param {string} description
+     * @param {(arg0: vscode.WorkspaceEdit) => void} editor
+     */
+    createFix(description, editor) {
+        const fix = new vscode.CodeAction(description, vscode.CodeActionKind.QuickFix);
+        const edit = new vscode.WorkspaceEdit();
+        editor(edit);
+        fix.edit = edit;
+        return fix;
+    }
 
     /**
      * @param {DartClass} clazz
@@ -1413,6 +1412,21 @@ class DataClassCodeActions {
         return this.constructQuickFix('equality', 'Generate equality');
     }
 
+    createMakeRequiredFix() {
+        const includes = (match) => this.line.includes(match);
+
+        if (!includes('@required') && includes('this.') && !includes('=') && this.clazz.constr.includes('})')) {
+            if (this.lineNumber > this.clazz.constrStartsAtLine && this.lineNumber < this.clazz.constrEndsAtLine) {
+                const inset = getLineInset(this.line);
+                return this.createFix('Annotate with @required', (edit) => {
+                    edit.insert(this.document.uri, new vscode.Position(this.lineNumber - 1, inset), '@required ');
+                });
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param {DataClassGenerator} generator
      */
@@ -1444,26 +1458,12 @@ class DataClassCodeActions {
         return edit;
     }
 
-    /**
-     * @param {vscode.Range} range
-     */
-    getClass(range) {
-        const line = this.document.lineAt(range.start).text.trim();
-        if (line.startsWith('class') || line.startsWith('abstract class')) {
-            const words = line.split(' ');
-            for (let word of words) {
-                if (word != 'class' && word != 'abstract' && word != '{') {
-                    if (word.length > 0 && word[0] == word[0].toUpperCase()) {
-                        if (word.includes('<')) {
-                            return word.substring(0, word.indexOf('<'));
-                        }
-
-                        return word;
-                    }
-                }
+    getClass() {
+        for (let clazz of this.generator.clazzes) {
+            if (clazz.startsAtLine <= this.lineNumber && clazz.endsAtLine >= this.lineNumber) {
+                return clazz;
             }
         }
-        return null;
     }
 }
 
@@ -1696,6 +1696,18 @@ function indent(source) {
         r += '  ' + line + '\n';
     }
     return r.length > 0 ? r : source;
+}
+
+/**
+ * @param {string} source
+ */
+function getLineInset(source) {
+    let inset = 0;
+    for (let char of source) {
+        if (char == ' ') inset++;
+        else break;
+    }
+    return inset;
 }
 
 /**

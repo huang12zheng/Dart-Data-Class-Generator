@@ -921,10 +921,14 @@ class DataClassGenerator {
         let curlyBrackets = 0;
         let brackets = 0;
 
-        for (var x = 0; x < lines.length; x++) {
+        for (let x = 0; x < lines.length; x++) {
             const line = lines[x];
             const linePos = x + 1;
-            const classLine = line.trimLeft().includes('class');
+
+            // Make sure to look for 'class ' with the space in order to allow
+            // fields that contain the word 'class' as in classifire.
+            // issue: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/2
+            const classLine = line.includes('class ');
 
             if (classLine) {
                 clazz = new DartClass();

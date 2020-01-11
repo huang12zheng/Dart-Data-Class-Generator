@@ -195,14 +195,14 @@
 						"default": false,
 						"description": "If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui."
 					},
-					"dart_data_class_generator.useProps": {
+					"dart_data_class_generator.useEquatable": {
 						"type": "boolean",
 						"enum": [
 							true,
 							false
 						],
 						"default": false,
-						"description": "If true, generates a props for a data class."
+						"description": "If true, uses equatable for value equality."
 					}
 				}
 			}

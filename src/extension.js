@@ -826,9 +826,9 @@ class DataClassGenerator {
 
         let customTypeMapping = function (prop, value = null) {
             prop = prop.isList ? prop.listType : prop;
-            value = value == null ? "map['" + prop.jsonName + "']" : value;
             const addDefault = defVal && prop.type != 'dynamic';
             const endFlag = value == null ? ',\n' : '';
+            value = value == null ? "map['" + prop.jsonName + "']" : value;
 
             switch (prop.type) {
                 case 'DateTime':

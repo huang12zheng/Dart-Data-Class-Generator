@@ -62,25 +62,40 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.constructor.required`: If true, generates @required annotation for every constructor parameter. Note: The generator wont generate default values for the constructor if enabled!
 * `dart_data_class_generator.json.seperate`: Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file.
 * `dart_data_class_generator.override.manual`: If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator.
-* `dart_data_class_generator.constructor`: If true, generates a constructor for a data class.
-* `dart_data_class_generator.copyWith`: If true, generates a copyWith function for a data class.
-* `dart_data_class_generator.toMap`: If true, generates a toMap function for a data class.
-* `dart_data_class_generator.fromMap`: If true, generates a fromMap function for a data class.
-* `dart_data_class_generator.toJson`: If true, generates a toJson function for a data class.
-* `dart_data_class_generator.fromJson`: If true, generates a fromJson function for a data class.
-* `dart_data_class_generator.toString`: If true, generates a toString function for a data class.
-* `dart_data_class_generator.equality`: If true, generates a value equality function for a data class.
-* `dart_data_class_generator.hashCode`: If true, generates a hashCode function for a data class.
+* `dart_data_class_generator.constructor.enabled`: If true, generates a constructor for a data class.
+* `dart_data_class_generator.copyWith.enabled`: If true, generates a copyWith function for a data class.
+* `dart_data_class_generator.toMap.enabled`: If true, generates a toMap function for a data class.
+* `dart_data_class_generator.fromMap.enabled`: If true, generates a fromMap function for a data class.
+* `dart_data_class_generator.toJson.enabled`: If true, generates a toJson function for a data class.
+* `dart_data_class_generator.fromJson.enabled`: If true, generates a fromJson function for a data class.
+* `dart_data_class_generator.toString.enabled`: If true, generates a toString function for a data class.
+* `dart_data_class_generator.equality.enabled`: If true, generates a value equality function for a data class.
+* `dart_data_class_generator.hashCode.enabled`: If true, generates a hashCode function for a data class.
 * `dart_data_class_generator.hashCode.use_jenkins`: If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui.
+* `dart_data_class_generator.useEquatable`: If true, uses Equatable for value equality and hashCode.
 
 ## Release Notes
 
-### 0.1.0
-Initial release (Beta).
+### 0.3.5
+
+Added support for equatable by setting `dart_data_class_generator.useEquatable` to true.
+
+Changed setting `dart_data_class_generator.constructor` to `dart_data_class_generator.constructor.enabled`.  
+Changed setting `dart_data_class_generator.copyWith` to `dart_data_class_generator.copyWith.enabled`.  
+Changed setting `dart_data_class_generator.toMap` to `dart_data_class_generator.toMap.enabled`.  
+Changed setting `dart_data_class_generator.fromMap` to `dart_data_class_generator.fromMap.enabled`.  
+Changed setting `dart_data_class_generator.toJson` to `dart_data_class_generator.toJson.enabled`.  
+Changed setting `dart_data_class_generator.fromJson` to `dart_data_class_generator.fromJson.enabled`.  
+Changed setting `dart_data_class_generator.toString` to `dart_data_class_generator.toString.enabled`.  
+Changed setting `dart_data_class_generator.equality` to `dart_data_class_generator.equality.enabled`.  
+Changed setting `dart_data_class_generator.hashCode` to `dart_data_class_generator.hashCode.enabled`.  
+
+### 0.3.0
+Added quick fixes
 
 ### 0.2.0
 Added support for @required annotation.  
 Changed the default hashCode implementation to bitwise operator.
 
-### 0.3.0
-Added quick fixes
+### 0.1.0
+Initial release (Beta).

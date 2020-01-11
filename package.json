@@ -3,7 +3,7 @@
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
 	"publisher": "BendixMa",
-	"version": "0.3.4",
+	"version": "0.3.5",
 	"engines": {
 		"vscode": "^1.37.0"
 	},
@@ -105,7 +105,7 @@
 						"default": "ask",
 						"description": "Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file."
 					},
-					"dart_data_class_generator.constructor": {
+					"dart_data_class_generator.constructor.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -114,7 +114,7 @@
 						"default": true,
 						"description": "If true, generates a constructor for a data class."
 					},
-					"dart_data_class_generator.copyWith": {
+					"dart_data_class_generator.copyWith.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -123,7 +123,7 @@
 						"default": true,
 						"description": "If true, generates a copyWith function for a data class."
 					},
-					"dart_data_class_generator.toMap": {
+					"dart_data_class_generator.toMap.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -132,7 +132,7 @@
 						"default": true,
 						"description": "If true, generates a toMap function for a data class."
 					},
-					"dart_data_class_generator.fromMap": {
+					"dart_data_class_generator.fromMap.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -141,7 +141,7 @@
 						"default": true,
 						"description": "If true, generates a fromMap function for a data class."
 					},
-					"dart_data_class_generator.toJson": {
+					"dart_data_class_generator.toJson.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -150,7 +150,7 @@
 						"default": true,
 						"description": "If true, generates a toJson function for a data class."
 					},
-					"dart_data_class_generator.fromJson": {
+					"dart_data_class_generator.fromJson.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -159,7 +159,7 @@
 						"default": true,
 						"description": "If true, generates a fromJson function for a data class."
 					},
-					"dart_data_class_generator.toString": {
+					"dart_data_class_generator.toString.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -168,7 +168,7 @@
 						"default": true,
 						"description": "If true, generates a toString function for a data class."
 					},
-					"dart_data_class_generator.equality": {
+					"dart_data_class_generator.equality.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -177,7 +177,7 @@
 						"default": true,
 						"description": "If true, generates a value equality function for a data class."
 					},
-					"dart_data_class_generator.hashCode": {
+					"dart_data_class_generator.hashCode.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -202,7 +202,7 @@
 							false
 						],
 						"default": false,
-						"description": "If true, uses equatable for value equality."
+						"description": "If true, uses equatable for value equality and hashcode."
 					}
 				}
 			}

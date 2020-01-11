@@ -574,7 +574,7 @@ class DataClassGenerator {
     }
 
     generateDataClazzes() {
-        const insertConstructor = readSetting('constructor') && this.isPart('constructor');
+        const insertConstructor = readSetting('constructor.enabled') && this.isPart('constructor');
 
         for (let clazz of this.clazzes) {
             this.clazz = clazz;
@@ -583,25 +583,25 @@ class DataClassGenerator {
                 this.insertConstructor(clazz);
 
             if (!clazz.isWidget && !clazz.isAbstract) {
-                if (readSetting('copyWith') && this.isPart('copyWith'))
+                if (readSetting('copyWith.enabled') && this.isPart('copyWith'))
                     this.insertCopyWith(clazz);
-                if (readSetting('toMap') && this.isPart('serialization'))
+                if (readSetting('toMap.enabled') && this.isPart('serialization'))
                     this.insertToMap(clazz);
-                if (readSetting('fromMap') && this.isPart('serialization'))
+                if (readSetting('fromMap.enabled') && this.isPart('serialization'))
                     this.insertFromMap(clazz);
-                if (readSetting('toJson') && this.isPart('serialization'))
+                if (readSetting('toJson.enabled') && this.isPart('serialization'))
                     this.insertToJson(clazz);
-                if (readSetting('fromJson') && this.isPart('serialization'))
+                if (readSetting('fromJson.enabled') && this.isPart('serialization'))
                     this.insertFromJson(clazz);
-                if (readSetting('toString') && this.isPart('toString'))
+                if (readSetting('toString.enabled') && this.isPart('toString'))
                     this.insertToString(clazz);
 
                 if (readSetting('useEquatable') && this.isPart('useEquatable')) {
                     this.insertEquatable(clazz);
                 } else {
-                    if (readSetting('equality') && this.isPart('equality'))
+                    if (readSetting('equality.enabled') && this.isPart('equality'))
                         this.insertEquality(clazz);
-                    if (readSetting('hashCode') && this.isPart('hashCode'))
+                    if (readSetting('hashCode.enabled') && this.isPart('hashCode'))
                         this.insertHash(clazz);
                 }
             }
@@ -1516,22 +1516,22 @@ class DataClassCodeActions {
         const validLine = this.lineNumber == this.clazz.startsAtLine || this.lineNumber == this.clazz.constrStartsAtLine;
         if (!validLine) return codeActions;
 
-        if (readSetting('constructor'))
+        if (readSetting('constructor.enabled'))
             codeActions.push(this.createConstructorFix());
 
         if (!this.clazz.isWidget && !this.clazz.isAbstract) {
             codeActions.splice(0, 0, this.createDataClassFix(this.clazz));
 
-            if (readSetting('copyWith'))
+            if (readSetting('copyWith.enabled'))
                 codeActions.push(this.createCopyWithFix());
-            if (readSettings(['toMap', 'fromMap', 'toJson', 'fromJson']))
+            if (readSettings(['toMap.enabled', 'fromMap.enabled', 'toJson.enabled', 'fromJson.enabled']))
                 codeActions.push(this.createSerializationFix());
-            if (readSetting('toString'))
+            if (readSetting('toString.enabled'))
                 codeActions.push(this.createToStringFix());
 
             if (readSetting('useEquatable'))
                 codeActions.push(this.createUseEquatableFix());
-            else if (readSettings(['equality', 'hashCode']))
+            else if (readSettings(['equality.enabled', 'hashCode.enabled']))
                 codeActions.push(this.createEqualityFix());
 
         }
@@ -1996,16 +1996,15 @@ function readSetting(key) {
 
 /**
  * @param {string[]} keys
- * @param {boolean} passAll
  */
-function readSettings(keys, passAll = false) {
-    let result = passAll ? true : false;
+function readSettings(keys) {
     for (let key of keys) {
-        if (readSetting(key) == (passAll ? false : true)) {
-            result = !result;
+        if (readSetting(key)) {
+            return true;
         }
     }
-    return result;
+
+    return false;
 }
 
 /**

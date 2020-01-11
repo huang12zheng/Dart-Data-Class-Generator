@@ -960,7 +960,7 @@ class DataClassGenerator {
 
                 for (let word of line.split(' ')) {
                     if (word.length > 0 && word != '{') {
-                        if (word.endsWith('{', word.length - 1))
+                        if (word.endsWith('{'))
                             word = word.substr(0, word.length - 1);
 
                         if (word == 'class') classNext = true;

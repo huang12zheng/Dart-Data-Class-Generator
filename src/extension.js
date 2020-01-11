@@ -273,6 +273,8 @@ class DartClass {
         addImports(packageImports);
         addImports(relativeImports);
 
+        console.log(imps);
+
         return imps;
     }
 
@@ -1407,27 +1409,16 @@ class JsonReader {
 	/**
 	 * @param {DartClass} clazz
 	 */
-    fillGenImports(clazz) {
-        let imports = '';
-        let hasGenType = false;
+    addGeneratedFilesAsImport(clazz) {
         for (let prop of clazz.properties) {
             // Import only inambigous generated types.
             // E.g. if there are multiple generated classes with
             // the same name, do not include an import of that class.
             if (this.getGeneratedTypeCount(prop.listType.type) == 1) {
-                let imp = `import '${createFileName(prop.listType.type)}.dart';\n`;
-                if (!hasGenType) {
-                    hasGenType = true;
-                    // Seperate generated file imports from the rest.
-                    imp = '\n' + imp;
-                }
-
+                let imp = `import '${createFileName(prop.listType.type)}.dart';`;
                 clazz.imports.push(imp);
-                imports += imp;
             }
         }
-
-        return imports.length > 0 ? imports : null;
     }
 
 	/**
@@ -1451,7 +1442,7 @@ class JsonReader {
 
             if (seperate) {
                 const clazz = generator.clazzes[0];
-                this.fillGenImports(clazz)
+                this.addGeneratedFilesAsImport(clazz)
 
                 if (i > 0) {
                     await writeFile(clazz.getClassReplacement(), file.name, false, path);

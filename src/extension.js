@@ -513,6 +513,8 @@ class DataClassGenerator {
                     this.insertEquality(clazz);
                 if (readSetting('hashCode') && this.isPart('equality'))
                     this.insertHash(clazz);
+                if (readSetting('useProps') && this.isPart('useProps'))
+                    this.insertProps(clazz);
             }
 
             // Add non dart:... imports here to keep them properly formatted.
@@ -871,6 +873,30 @@ class DataClassGenerator {
         if (!short) method += '\n}';
 
         this.appendOrReplace('hashCode', method, 'int get hashCode', clazz);
+    }
+
+    /**
+	 * @param {DartClass} clazz
+	 */
+    insertProps(clazz) {
+        const short = true;
+        const props = clazz.properties;
+        const split = ', ';
+        const startFlag = '[';
+        const endFlag = ']';
+        let method = '@override\n';
+        method += `List<Object> get props ${!short ? '{\n' : '=>'}`;
+        method += `${!short ? '  return' : ''} ` + startFlag;
+        for (let p of props) {
+            method += p.name + split;
+            if (p.name == props[props.length - 1].name) {
+                method = removeEnd(method, split);
+                method += endFlag+ ";" + (short ? '' : '\n');
+            }
+        }
+        method += !short ? '}' : '';
+
+        this.appendOrReplace('props', method, 'List<Object> get props', clazz);
     }
 
     /**
@@ -1355,6 +1381,8 @@ class DataClassCodeActions {
                 codeActions.push(this.createToStringFix());
             if (readSettings(['equality', 'hashCode']))
                 codeActions.push(this.createEqualityFix());
+            if (readSetting('useProps'))
+                codeActions.push(this.createUsePropsFix());
         }
 
         return codeActions;
@@ -1410,6 +1438,9 @@ class DataClassCodeActions {
 
     createEqualityFix() {
         return this.constructQuickFix('equality', 'Generate equality');
+    }
+    createUsePropsFix() {
+        return this.constructQuickFix('useProps', 'Generate Props');
     }
 
     createMakeRequiredFix() {

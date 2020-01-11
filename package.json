@@ -3,7 +3,7 @@
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
 	"publisher": "BendixMa",
-	"version": "0.3.2",
+	"version": "0.3.4",
 	"engines": {
 		"vscode": "^1.37.0"
 	},
@@ -105,7 +105,7 @@
 						"default": "ask",
 						"description": "Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file."
 					},
-					"dart_data_class_generator.constructor": {
+					"dart_data_class_generator.constructor.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -132,7 +132,7 @@
 						"default": true,
 						"description": "If true, generates a toMap function for a data class."
 					},
-					"dart_data_class_generator.fromMap": {
+					"dart_data_class_generator.fromMap.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,
@@ -177,7 +177,7 @@
 						"default": true,
 						"description": "If true, generates a value equality function for a data class."
 					},
-					"dart_data_class_generator.hashCode": {
+					"dart_data_class_generator.hashCode.enabled": {
 						"type": "boolean",
 						"enum": [
 							true,

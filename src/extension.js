@@ -489,7 +489,7 @@ class DataClassGenerator {
     }
 
     generateDataClazzes() {
-        const insertConstructor = readSetting('constructor') && this.isPart('constructor');
+        const insertConstructor = readSetting('constructor.enabled') && this.isPart('constructor');
         const required = readSetting('constructor.required');
 
         for (let clazz of this.clazzes) {
@@ -501,7 +501,7 @@ class DataClassGenerator {
                     this.insertCopyWith(clazz);
                 if (readSetting('toMap') && this.isPart('serialization'))
                     this.insertToMap(clazz);
-                if (readSetting('fromMap') && this.isPart('serialization'))
+                if (readSetting('fromMap.enabled') && this.isPart('serialization'))
                     this.insertFromMap(clazz);
                 if (readSetting('toJson') && this.isPart('serialization'))
                     this.insertToJson(clazz);
@@ -511,7 +511,7 @@ class DataClassGenerator {
                     this.insertToString(clazz);
                 if (readSetting('equality') && this.isPart('equality'))
                     this.insertEquality(clazz);
-                if (readSetting('hashCode') && this.isPart('equality'))
+                if (readSetting('hashCode.enabled') && this.isPart('equality'))
                     this.insertHash(clazz);
                 if (readSetting('useProps') && this.isPart('useProps'))
                     this.insertProps(clazz);
@@ -1367,7 +1367,7 @@ class DataClassCodeActions {
         const validLine = this.lineNumber == this.clazz.startsAtLine || this.lineNumber == this.clazz.constrStartsAtLine;
         if (!validLine) return codeActions;
 
-        if (readSetting('constructor'))
+        if (readSetting('constructor.enabled'))
             codeActions.push(this.createConstructorFix());
 
         if (!this.clazz.isWidget && !this.clazz.isAbstract) {
@@ -1375,11 +1375,11 @@ class DataClassCodeActions {
 
             if (readSetting('copyWith'))
                 codeActions.push(this.createCopyWithFix());
-            if (readSettings(['toMap', 'fromMap', 'toJson', 'fromJson']))
+            if (readSettings(['toMap', 'fromMap.enabled', 'toJson', 'fromJson']))
                 codeActions.push(this.createSerializationFix());
             if (readSetting('toString'))
                 codeActions.push(this.createToStringFix());
-            if (readSettings(['equality', 'hashCode']))
+            if (readSettings(['equality', 'hashCode.enabled']))
                 codeActions.push(this.createEqualityFix());
             if (readSetting('useProps'))
                 codeActions.push(this.createUsePropsFix());

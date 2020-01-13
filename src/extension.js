@@ -273,8 +273,6 @@ class DartClass {
         addImports(packageImports);
         addImports(relativeImports);
 
-        console.log(imps);
-
         return imps;
     }
 

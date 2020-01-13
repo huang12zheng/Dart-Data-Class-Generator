@@ -175,7 +175,7 @@
 							false
 						],
 						"default": true,
-						"description": "If true, generates a value equality function for a data class."
+						"description": "If true, generates an override of the == (equals) operator for a data class."
 					},
 					"dart_data_class_generator.hashCode.enabled": {
 						"type": "boolean",

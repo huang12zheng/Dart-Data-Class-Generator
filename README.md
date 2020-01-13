@@ -69,7 +69,7 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.toJson.enabled`: If true, generates a toJson function for a data class.
 * `dart_data_class_generator.fromJson.enabled`: If true, generates a fromJson function for a data class.
 * `dart_data_class_generator.toString.enabled`: If true, generates a toString function for a data class.
-* `dart_data_class_generator.equality.enabled`: If true, generates a value equality function for a data class.
+* `dart_data_class_generator.equality.enabled`: If true, generates an override of the == (equals) operator for a data class.
 * `dart_data_class_generator.hashCode.enabled`: If true, generates a hashCode function for a data class.
 * `dart_data_class_generator.hashCode.use_jenkins`: If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui.
 * `dart_data_class_generator.useEquatable`: If true, uses Equatable for value equality and hashCode.

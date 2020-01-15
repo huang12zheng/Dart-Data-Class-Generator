@@ -4,7 +4,7 @@ Create dart data classes easily, fast and without writing boilerplate or running
 
 ## Features
 
-The generator can generate the constructor, copyWith, toMap, fromMap, toJson, fromJson, toString, value equality and hashCode methods from a class based on class properties or raw JSON.
+The generator can generate the `constructor`, `copyWith`, `toMap`, `fromMap`, `toJson`, `fromJson`, `toString`, `operator ==` and `hashCode` methods for a class based on class properties or raw JSON.
 
 ## Create data classes based on class properties
 

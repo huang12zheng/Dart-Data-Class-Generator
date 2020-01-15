@@ -195,7 +195,7 @@ class DartClass {
         /** @type {string} */
         this.genericType = '';
         /** @type {string} */
-        this.extend = null;
+        this.superclass = null;
         /** @type {string[]} */
         this.mixins = [];
         /** @type {string} */
@@ -236,6 +236,10 @@ class DartClass {
 
     get hasImports() {
         return this.imports.length > 0;
+    }
+
+    get hasSuperclass() {
+        return this.superclass != null;
     }
 
     get formattedImports() {
@@ -317,15 +321,15 @@ class DartClass {
     }
 
     get isWidget() {
-        return this.extend != null && (this.extend == 'StatelessWidget' || this.extend == 'StatefulWidget');
+        return this.superclass != null && (this.superclass == 'StatelessWidget' || this.superclass == 'StatefulWidget');
     }
 
     get isStatelessWidget() {
-        return this.isWidget && this.extend != null && this.extend == 'StatelessWidget';
+        return this.isWidget && this.superclass != null && this.superclass == 'StatelessWidget';
     }
 
     get isState() {
-        return !this.isWidget && this.extend != null && this.extend.startsWith('State<');
+        return !this.isWidget && this.superclass != null && this.superclass.startsWith('State<');
     }
 
     get isAbstract() {
@@ -381,8 +385,8 @@ class DartClass {
 
             if (i == 0) {
                 let classLine = 'class ' + this.name + this.genericType;
-                if (this.extend != null) {
-                    classLine += ' extends ' + this.extend;
+                if (this.superclass != null) {
+                    classLine += ' extends ' + this.superclass;
                 }
 
                 if (this.hasMixins) {
@@ -969,8 +973,11 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertEquatable(clazz) {
-        this.requiresImport('package:equatable/equatable.dart');
-        this.addMixin('EquatableMixin');
+        // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
+        if (clazz.hasSuperclass && !clazz.superclass.includes('Base')) {
+            this.requiresImport('package:equatable/equatable.dart');
+            this.addMixin('EquatableMixin');
+        }
 
         const props = clazz.properties;
         const short = props.length <= 4;
@@ -1019,7 +1026,7 @@ class DataClassGenerator {
      * @param {string} clazz
      */
     setSuperClass(clazz) {
-        this.clazz.extend = clazz;
+        this.clazz.superclass = clazz;
     }
 
     /**
@@ -1119,7 +1126,7 @@ class DataClassGenerator {
                             extendsNext = true;
                         } else if (extendsNext) {
                             extendsNext = false;
-                            clazz.extend = word;
+                            clazz.superclass = word;
                         } else if (word == 'with') {
                             mixinsNext = true;
                         } else if (mixinsNext) {

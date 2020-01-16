@@ -86,7 +86,7 @@ async function generateJsonDataClass() {
 
 async function generateDataClass(text = getDocText()) {
     if (getLangId() == 'dart') {
-        const generator = new DataClassGenerator(text, null);
+        const generator = new DataClassGenerator(text);
         let clazzes = generator.clazzes;
 
         if (clazzes.length == 0) {
@@ -118,14 +118,6 @@ async function generateDataClass(text = getDocText()) {
                         } else if ('Yes' == r) result.push(replacement);
                     }
                     clazz.toReplace = result;
-                } else {
-                    const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                        placeHolder: `Do you want to override changes in ${clazz.name}? Custom function implementations may not be preserved!`,
-                        canPickMany: false
-                    });
-
-                    if (r == null) return;
-                    else if (r != 'Yes') clazz.toReplace = [];
                 }
             }
         }
@@ -196,6 +188,7 @@ class DartClass {
         this.toInsert = '';
         /** @type {ClassPart[]} */
         this.toReplace = [];
+        this.isLastInFile = false;
     }
 
     get type() {
@@ -219,7 +212,7 @@ class DartClass {
     }
 
     get didChange() {
-        return this.toInsert.length > 0 || this.toReplace.length > 0 && this.constrDifferent;
+        return this.toInsert.length > 0 || this.toReplace.length > 0 || this.constrDifferent;
     }
 
     get hasNamedConstructor() {
@@ -366,13 +359,15 @@ class Imports {
 	 * @param {string} file
 	 */
     constructor(file) {
-        this.file = file;
         /** @type {string[]} */
         this.values = [];
         /** @type {number} */
         this.startAtLine = null;
         /** @type {number} */
         this.endAtLine = null;
+        /** @type {string} */
+        this.rawImports = null;
+        this.file = file;
 
         this.readImports();
     }
@@ -381,8 +376,20 @@ class Imports {
         return this.values != null && this.values.length > 0;
     }
 
+    get hasExportDeclaration() {
+        return /^export /m.test(this.formatted);
+    }
+
+    get hasImportDeclaration() {
+        return /^import /m.test(this.formatted);
+    }
+
     get hasPreviousImports() {
         return this.startAtLine != null && this.endAtLine != null;
+    }
+
+    get didChange() {
+        return !areStrictEqual(this.rawImports, this.formatted);
     }
 
     get range() {
@@ -393,6 +400,7 @@ class Imports {
     }
 
     readImports() {
+        this.rawImports = '';
         const lines = this.file.split('\n');
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -400,8 +408,14 @@ class Imports {
 
             if (line.startsWith('import') || line.startsWith('export')) {
                 this.values.push(line);
+                this.rawImports += `${line}\n`;
                 if (this.startAtLine == null) {
                     this.startAtLine = i + 1;
+                }
+
+                if (isLast) {
+                    this.endAtLine = i + 1;
+                    break;
                 }
             } else if (isLast || (!isBlank(line) && !line.startsWith('library'))) {
                 if (this.startAtLine != null) {
@@ -414,6 +428,7 @@ class Imports {
                 break;
             }
         }
+
     }
 
     get formatted() {
@@ -427,8 +442,6 @@ class Imports {
                 workspace = path.basename(folder.uri.fsPath);
             }
         }
-
-        // console.log(workspace);
 
         const dartImports = [];
         const packageImports = [];
@@ -633,7 +646,7 @@ class DataClassGenerator {
      * @param {string} part
      */
     isPart(part) {
-        return this.part == null ? true : this.part == part;
+        return this.part == null || this.part == part;
     }
 
     generateDataClazzes() {
@@ -1482,7 +1495,7 @@ class JsonReader {
             const file = this.files[i];
             const isLast = i == length - 1;
             const generator = new DataClassGenerator(file.content, [file.clazz], true);
-            const imports = generator.imports.formatted;
+            const imports = `${generator.imports.formatted}\n`;
 
             progress.report({
                 increment: ((1 / length) * 100),
@@ -1620,15 +1633,26 @@ class DataClassCodeActions {
     constructQuickFix(part, description) {
         const generator = new DataClassGenerator(this.document.getText(), null, false, part);
         const fix = new vscode.CodeAction(description, vscode.CodeActionKind.QuickFix);
-        fix.edit = this.getClazzEdit(this.findQuickFixClazz(generator));
-        return fix;
+        const clazz = this.findQuickFixClazz(generator);
+        if (clazz != null) {
+            fix.edit = this.getClazzEdit(clazz, generator.imports);
+            return fix;
+        }
+    }
+
+    /** @param {DataClassGenerator} generator */
+    findQuickFixClazz(generator) {
+        for (let clazz of generator.clazzes) {
+            if (clazz.name == this.clazz.name)
+                return clazz;
+        }
     }
 
     /**
      * @param {DartClass} clazz
      */
-    getClazzEdit(clazz) {
-        return getReplaceEdit(clazz, this.generator.imports);
+    getClazzEdit(clazz, imports = null) {
+        return getReplaceEdit(clazz, imports || this.generator.imports);
     }
 
     createConstructorFix() {
@@ -1674,20 +1698,20 @@ class DataClassCodeActions {
 
     createImportsFix() {
         const imports = this.generator.imports;
+        if (!imports.didChange) return;
+
         const inImportsRange = this.lineNumber >= imports.startAtLine && this.lineNumber <= imports.endAtLine;
-        console.log(`${this.lineNumber}, ${imports.startAtLine}, ${imports.endAtLine}`);
         if (inImportsRange) {
-            return this.createFix('Order imports', (edit) => {
+            let title = 'Order imports';
+            if (imports.hasImportDeclaration && imports.hasExportDeclaration) {
+                title = 'Order imports/exports';
+            } else if (imports.hasExportDeclaration) {
+                title = 'Order exports';
+            }
+
+            return this.createFix(title, (edit) => {
                 edit.replace(this.uri, imports.range, imports.formatted);
             });
-        }
-    }
-
-    /** @param {DataClassGenerator} generator */
-    findQuickFixClazz(generator) {
-        for (let clazz of generator.clazzes) {
-            if (clazz.name == this.clazz.name)
-                return clazz;
         }
     }
 
@@ -1714,14 +1738,13 @@ function getReplaceEdit(values, imports = null, showLogs = false) {
     const noChanges = [];
     for (var i = clazzes.length - 1; i >= 0; i--) {
         const clazz = clazzes[i];
-        const isFirst = i == clazzes.length - 1;
 
         if (clazz.isValid) {
             if (clazz.didChange) {
                 let replacement = clazz.getClassReplacement();
                 // Seperate the classes with a new line when multiple
                 // classes are being generated.
-                if (hasMultiple && !isFirst) {
+                if (!clazz.isLastInFile) {
                     replacement += '\n';
                 }
 

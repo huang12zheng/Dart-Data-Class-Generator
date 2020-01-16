@@ -1,17 +1,24 @@
 const vscode = require('vscode');
 const fs = require('fs');
+const path = require('path');
 
 /**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-    context.subscriptions.push(vscode.commands.registerCommand('dart_data_class.generate.from_props', () => {
-        generateDataClass();
-    }));
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'dart_data_class.generate.from_props',
+            generateDataClass
+        )
+    );
 
-    context.subscriptions.push(vscode.commands.registerCommand('dart_data_class.generate.from_json', () => {
-        generateJsonDataClass();
-    }));
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'dart_data_class.generate.from_json',
+            generateJsonDataClass
+        )
+    );
 
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider({
         language: 'dart',
@@ -82,80 +89,53 @@ async function generateDataClass(text = getDocText()) {
         const generator = new DataClassGenerator(text, null);
         let clazzes = generator.clazzes;
 
-        // Reverse clazzes when converting from JSON and clazz length greater than 2 => 
-        // dev chose single file option, to make sure classes are inserted in correct
-        // order and not reversed.
-        if (clazzes.length >= 2) {
-            clazzes = clazzes.reverse();
-        }
-
-        // Show a prompt if there are more than one classes in the current editor.
-        if (clazzes.length >= 2) {
-            const result = await showClassChooser(clazzes);
-            if (result != null) {
-                clazzes = result;
-            } else {
+        if (clazzes.length == 0) {
+            showError('No convertable dart classes were detected!');
+            return null;
+        } else if (clazzes.length >= 2) {
+            // Show a prompt if there is more than one class in the current editor.
+            clazzes = await showClassChooser(clazzes);
+            if (clazzes == null) {
                 showInfo('No classes selected!');
                 return;
             }
         }
 
-        console.log(clazzes);
-
-        if (clazzes.length > 0) {
-            for (let clazz of clazzes) {
-                if (clazz.isValid && clazz.toReplace.length > 0) {
-                    if (!readSetting('override.manual')) {
+        for (let clazz of clazzes) {
+            if (clazz.isValid && clazz.toReplace.length > 0) {
+                if (readSetting('override.manual')) {
+                    // When manual overriding is activated ask for every override.
+                    let result = [];
+                    for (let replacement of clazz.toReplace) {
                         const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                            placeHolder: `Do you want to override changes in ${clazz.name}? Custom function implementations may not be preserved!`,
+                            placeHolder: `Do you want to override ${replacement.name}?`,
                             canPickMany: false
                         });
 
-                        if (r == null) return;
-                        else if (r != 'Yes') clazz.toReplace = [];
-                    } else {
-                        // When manual overriding is activated ask for every override.
-                        let result = [];
-                        for (let replacement of clazz.toReplace) {
-                            const r = await vscode.window.showQuickPick(['Yes', 'No'], {
-                                placeHolder: `Do you want to override ${replacement.name}?`,
-                                canPickMany: false
-                            });
-
-                            if (r == null) {
-                                showInfo('Override flow canceled!');
-                                return;
-                            } else if ('Yes' == r) result.push(replacement);
-                        }
-                        clazz.toReplace = result;
+                        if (r == null) {
+                            showInfo('Canceled!');
+                            return;
+                        } else if ('Yes' == r) result.push(replacement);
                     }
+                    clazz.toReplace = result;
+                } else {
+                    const r = await vscode.window.showQuickPick(['Yes', 'No'], {
+                        placeHolder: `Do you want to override changes in ${clazz.name}? Custom function implementations may not be preserved!`,
+                        canPickMany: false
+                    });
+
+                    if (r == null) return;
+                    else if (r != 'Yes') clazz.toReplace = [];
                 }
             }
-
-			/** 
-			* @param {vscode.TextEditor} editor
-			*/
-            await vscode.window.activeTextEditor.edit(editor => {
-                for (let i = clazzes.length - 1; i >= 0; i--) {
-                    const clazz = clazzes[i];
-
-                    if (clazz.toInsert.length == 0 && clazz.toReplace.length == 0 && !clazz.constrDifferent) {
-                        showInfo(`No changes detected for class ${clazz.name}`);
-                    } else {
-                        if (clazz.isValid) {
-                            clazz.replace(editor, i);
-                        } else if (clazz.issue != null) {
-                            showError(clazz.issue);
-                        }
-                    }
-                }
-            });
-
-            clearSelection();
-        } else {
-            showError('No convertable dart classes were detected!');
-            return null;
         }
+
+        console.log(clazzes);
+
+        const edit = getReplaceEdit(clazzes, generator.imports, true);
+        await vscode.workspace.applyEdit(edit);
+
+        clearSelection();
 
         return clazzes;
     } else {
@@ -199,11 +179,7 @@ class DartClass {
         /** @type {string[]} */
         this.mixins = [];
         /** @type {string} */
-        /** @type {string[]} */
-        this.imports = [];
-        /** @type {string} */
         this.constr = null;
-        this.lastImportLine = 0;
         /** @type {ClassProperty[]} */
         this.properties = [];
         /** @type {number} */
@@ -234,54 +210,16 @@ class DartClass {
         }
     }
 
-    get hasImports() {
-        return this.imports.length > 0;
-    }
-
     get hasSuperclass() {
         return this.superclass != null;
     }
 
-    get formattedImports() {
-        if (!this.hasImports) return '';
-
-        let imps = '';
-        let dartImports = [];
-        let packageImports = [];
-        let relativeImports = [];
-
-        for (let imp of this.imports) {
-            if (imp.includes('dart:')) {
-                dartImports.push(imp);
-            } else if (imp.includes('package:')) {
-                packageImports.push(imp);
-            } else {
-                relativeImports.push(imp);
-            }
-        }
-
-        let addImports = function (imports) {
-            imports.sort();
-            for (let i = 0; i < imports.length; i++) {
-                const isLast = i == imports.length - 1;
-                const imp = imports[i];
-                imps += imp + '\n';
-
-                if (isLast) {
-                    imps += '\n';
-                }
-            }
-        }
-
-        addImports(dartImports);
-        addImports(packageImports);
-        addImports(relativeImports);
-
-        return imps;
-    }
-
     get classDetected() {
         return this.startsAtLine != null;
+    }
+
+    get didChange() {
+        return this.toInsert.length > 0 || this.toReplace.length > 0 && this.constrDifferent;
     }
 
     get hasNamedConstructor() {
@@ -304,10 +242,6 @@ class DartClass {
         return this.endsAtLine != null;
     }
 
-    get areImportsSeperated() {
-        return this.lastImportLine == 0 || this.lastImportLine != this.startsAtLine - 1;
-    }
-
     get hasProperties() {
         return this.properties.length > 0;
     }
@@ -317,7 +251,7 @@ class DartClass {
     }
 
     get isValid() {
-        return this.classDetected && this.hasEnding && this.hasProperties && this.uniquePropNames && this.areImportsSeperated;
+        return this.classDetected && this.hasEnding && this.hasProperties && this.uniquePropNames;
     }
 
     get isWidget() {
@@ -339,16 +273,17 @@ class DartClass {
     get issue() {
         const def = this.name + ' couldn\'t be converted to a data class: '
         let msg = def;
-        if (!this.hasProperties) msg += 'Class must have at least one property!';
-        else if (!this.hasEnding) msg += 'Class has no ending!';
-        else if (!this.uniquePropNames) msg += 'Class doesn\'t have unique property names!';
-        else if (!this.areImportsSeperated) msg += 'Class must be seperated by at least one line from import statements!';
-        else msg = removeEnd(msg, ': ') + '.';
-        if (msg != def) {
-            return msg;
+        if (!this.hasProperties) {
+            msg += 'Class must have at least one property!';
+        } else if (!this.hasEnding) {
+            msg += 'Class has no ending!';
+        } else if (!this.uniquePropNames) {
+            msg += 'Class doesn\'t have unique property names!';
         } else {
-            return null;
+            msg = removeEnd(msg, ': ') + '.';
         }
+
+        return msg;
     }
 
     get uniquePropNames() {
@@ -375,7 +310,7 @@ class DartClass {
         return null;
     }
 
-    getClassReplacement(withImports = true) {
+    getClassReplacement() {
         let replacement = '';
         let lines = this.classContent.split('\n');
 
@@ -422,34 +357,157 @@ class DartClass {
             }
         }
 
-        if (withImports && this.hasImports) {
-            replacement = this.formattedImports + replacement;
-        }
-
         return removeEnd(replacement, '\n');
     }
+}
 
-	/**
-     * @param {vscode.TextEditorEdit} editor
-	 * @param {number} [index]
+class Imports {
+    /**
+	 * @param {string} file
 	 */
-    replace(editor, index) {
-        editorReplace(
-            editor,
-            this.startsAtLine - 1,
-            this.endsAtLine,
-            this.getClassReplacement(false)
-        );
+    constructor(file) {
+        this.file = file;
+        /** @type {string[]} */
+        this.values = [];
+        /** @type {number} */
+        this.startAtLine = null;
+        /** @type {number} */
+        this.endAtLine = null;
 
-        // If imports need to be inserted, do it at the top of the file.
-        if (this.hasImports && index == 0) {
-            if (this.lastImportLine == 0) {
-                editorInsert(editor, 0, this.formattedImports);
-            } else {
-                editorReplace(
-                    editor, 0, this.lastImportLine, removeEnd(this.formattedImports, '\n')
-                );
+        this.readImports();
+    }
+
+    get hasImports() {
+        return this.values != null && this.values.length > 0;
+    }
+
+    get hasPreviousImports() {
+        return this.startAtLine != null && this.endAtLine != null;
+    }
+
+    get range() {
+        return new vscode.Range(
+            new vscode.Position(this.startAtLine - 1, 0),
+            new vscode.Position(this.endAtLine, 1),
+        );
+    }
+
+    readImports() {
+        const lines = this.file.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            const isLast = i == lines.length - 1;
+
+            if (line.startsWith('import') || line.startsWith('export')) {
+                this.values.push(line);
+                if (this.startAtLine == null) {
+                    this.startAtLine = i + 1;
+                }
+            } else if (isLast || (!isBlank(line) && !line.startsWith('library'))) {
+                if (this.startAtLine != null) {
+                    if (i > 0 && isBlank(lines[i - 1])) {
+                        this.endAtLine = i - 1;
+                    } else {
+                        this.endAtLine = i;
+                    }
+                }
+                break;
             }
+        }
+    }
+
+    get formatted() {
+        if (!this.hasImports) return '';
+
+        const file = getEditor().document.uri;
+        let workspace = null;
+        if (file.scheme === 'file') {
+            const folder = vscode.workspace.getWorkspaceFolder(file);
+            if (folder) {
+                workspace = path.basename(folder.uri.fsPath);
+            }
+        }
+
+        // console.log(workspace);
+
+        const dartImports = [];
+        const packageImports = [];
+        const packageLocalImports = [];
+        const relativeImports = [];
+        const exports = [];
+
+        for (let imp of this.values) {
+            if (imp.startsWith('export')) {
+                exports.push(imp);
+            } else if (imp.includes('dart:')) {
+                dartImports.push(imp);
+            } else if (workspace != null && imp.includes(`package:${workspace}`)) {
+                packageLocalImports.push(imp);
+            } else if (imp.includes('package:')) {
+                packageImports.push(imp);
+            } else {
+                relativeImports.push(imp);
+            }
+        }
+
+        let imps = '';
+        const addImports = function (imports) {
+            imports.sort();
+            for (let i = 0; i < imports.length; i++) {
+                const isLast = i == imports.length - 1;
+                const imp = imports[i];
+                imps += imp + '\n';
+
+                if (isLast) {
+                    imps += '\n';
+                }
+            }
+        }
+
+        addImports(dartImports);
+        addImports(packageImports);
+        addImports(packageLocalImports);
+        addImports(relativeImports);
+        addImports(exports);
+
+        return removeEnd(imps, '\n');
+    }
+
+    /**
+     * @param {string} imp
+     */
+    includes(imp) {
+        return this.values.includes(imp);
+    }
+
+    /**
+     * @param {string} imp
+     */
+    push(imp) {
+        return this.values.push(imp);
+    }
+
+    /**
+	 * @param {string[]} imps
+	 */
+    hastAtLeastOneImport(imps) {
+        for (let imp of imps) {
+            const impt = `import '${imp}';`;
+            if (this.file.includes(impt) || this.includes(impt))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param {string} imp
+     * @param {string[]} validOverrides
+     */
+    requiresImport(imp, validOverrides = []) {
+        const formattedImport = !imp.startsWith('import') ? "import '" + imp + "';" : imp;
+
+        if (!this.includes(formattedImport) && !this.hastAtLeastOneImport(validOverrides)) {
+            this.values.push(formattedImport);
         }
     }
 }
@@ -553,21 +611,22 @@ class DataClassGenerator {
         this.text = text;
         this.fromJSON = fromJSON;
         this.clazzes = clazzes == null ? this.getClasses() : clazzes;
+        this.imports = new Imports(text);
         this.part = part;
         this.generateDataClazzes();
         this.clazz = null;
     }
 
-	/**
-	 * @param {string[]} imps
-	 */
-    hastAtLeastOneImport(imps) {
-        for (let imp of imps) {
-            const impt = `import '${imp}';`;
-            if (this.text.includes(impt) || this.clazz.imports.includes(impt))
-                return true;
-        }
-        return false;
+    get hasImports() {
+        return this.imports.hasImports;
+    }
+
+    /**
+     * @param {string} imp
+     * @param {string[]} validOverrides
+     */
+    requiresImport(imp, validOverrides = []) {
+        this.imports.requiresImport(imp, validOverrides);
     }
 
     /**
@@ -782,7 +841,10 @@ class DataClassGenerator {
 	 */
     insertToMap(clazz) {
         let props = clazz.properties;
-        let customTypeMapping = function (prop, name = null, endFlag = ',\n') {
+        /**
+         * @param {ClassProperty} prop
+         */
+        const customTypeMapping = function (prop, name = null, endFlag = ',\n') {
             prop = prop.isList ? prop.listType : prop;
             name = name == null ? prop.name : name;
             switch (prop.type) {
@@ -828,7 +890,10 @@ class DataClassGenerator {
         let props = clazz.properties;
         const fromJSON = this.fromJSON;
 
-        let customTypeMapping = function (prop, value = null) {
+        /**
+         * @param {ClassProperty} prop
+         */
+        const customTypeMapping = function (prop, value = null) {
             prop = prop.isList ? prop.listType : prop;
             const addDefault = defVal && prop.type != 'dynamic';
             const endFlag = value == null ? ',\n' : '';
@@ -1000,19 +1065,6 @@ class DataClassGenerator {
     }
 
     /**
-     * @param {string} imp
-     * @param {string[]} validOverrides
-     */
-    requiresImport(imp, validOverrides = []) {
-        const imports = this.clazz.imports;
-        const formattedImport = "import '" + imp + "';";
-
-        if (!imports.includes(formattedImport) && !this.hastAtLeastOneImport(validOverrides)) {
-            imports.push(formattedImport);
-        }
-    }
-
-    /**
      * @param {string} mixin
      */
     addMixin(mixin) {
@@ -1067,8 +1119,6 @@ class DataClassGenerator {
 
     getClasses() {
         let clazzes = [];
-        let imports = [];
-        let lastImportLine = 0;
         let clazz = new DartClass();
 
         let lines = this.text.split('\n');
@@ -1082,16 +1132,10 @@ class DataClassGenerator {
             // fields that contain the word 'class' as in classifire.
             // issue: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/2
             const classLine = line.includes('class ');
-            const importLine = !clazz.classDetected && line.startsWith('import');
 
-            if (importLine) {
-                imports.push(line.trim());
-                lastImportLine = linePos;
-            } else if (classLine) {
+            if (classLine) {
                 clazz = new DartClass();
                 clazz.startsAtLine = linePos;
-                clazz.imports = imports;
-                clazz.lastImportLine = lastImportLine;
 
                 let classNext = false;
                 let extendsNext = false;
@@ -1102,7 +1146,6 @@ class DataClassGenerator {
                         if (word.endsWith('{')) {
                             word = word.substring(0, word.length - 1);
                         }
-
 
                         if (word == 'class') {
                             classNext = true;
@@ -1119,7 +1162,6 @@ class DataClassGenerator {
 
                                 name = name.substring(0, name.indexOf('<'));
                             }
-
 
                             clazz.name = name;
                         } else if (word == 'extends') {
@@ -1412,16 +1454,17 @@ class JsonReader {
     }
 
 	/**
-	 * @param {DartClass} clazz
+	 * @param {DataClassGenerator} generator
 	 */
-    addGeneratedFilesAsImport(clazz) {
+    addGeneratedFilesAsImport(generator) {
+        const clazz = generator.clazzes[0];
         for (let prop of clazz.properties) {
             // Import only inambigous generated types.
             // E.g. if there are multiple generated classes with
             // the same name, do not include an import of that class.
             if (this.getGeneratedTypeCount(prop.listType.type) == 1) {
-                let imp = `import '${createFileName(prop.listType.type)}.dart';`;
-                clazz.imports.push(imp);
+                const imp = `import '${createFileName(prop.listType.type)}.dart';`;
+                generator.imports.push(imp);
             }
         }
     }
@@ -1432,13 +1475,14 @@ class JsonReader {
 	 */
     async commitJson(progress, seperate) {
         let path = getCurrentPath();
-        let f = '';
+        let fileContent = '';
 
         const length = this.files.length;
         for (let i = 0; i < length; i++) {
             const file = this.files[i];
             const isLast = i == length - 1;
             const generator = new DataClassGenerator(file.content, [file.clazz], true);
+            const imports = generator.imports.formatted;
 
             progress.report({
                 increment: ((1 / length) * 100),
@@ -1447,13 +1491,14 @@ class JsonReader {
 
             if (seperate) {
                 const clazz = generator.clazzes[0];
-                this.addGeneratedFilesAsImport(clazz)
+                this.addGeneratedFilesAsImport(generator)
 
+                const replacement = imports + clazz.getClassReplacement();
                 if (i > 0) {
-                    await writeFile(clazz.getClassReplacement(), file.name, false, path);
+                    await writeFile(replacement, file.name, false, path);
                 } else {
                     await getEditor().edit(editor => {
-                        editorReplace(editor, 0, null, clazz.getClassReplacement());
+                        editorReplace(editor, 0, null, replacement);
                     });
                 }
 
@@ -1462,14 +1507,14 @@ class JsonReader {
             } else {
                 // Insert in current file when JSON should not be seperated.
                 for (let clazz of generator.clazzes) {
-                    f += clazz.getClassReplacement(false) + '\n\n';
+                    fileContent += clazz.getClassReplacement() + '\n\n';
                 }
 
                 if (isLast) {
-                    f = removeEnd(f, '\n\n');
+                    fileContent = removeEnd(fileContent, '\n\n');
                     await getEditor().edit(editor => {
-                        editorReplace(editor, 0, null, f);
-                        editorInsert(editor, 0, file.clazz.formattedImports);
+                        editorReplace(editor, 0, null, fileContent);
+                        editorInsert(editor, 0, imports);
                     });
                 }
             }
@@ -1486,6 +1531,10 @@ class DataClassCodeActions {
         this.lineNumber = 0;
     }
 
+    get uri() {
+        return this.document.uri;
+    }
+
     /**
      * @param {vscode.TextDocument} document
      * @param {vscode.Range} range
@@ -1495,21 +1544,29 @@ class DataClassCodeActions {
             return;
         }
 
-        const codeActions = [];
         this.document = document;
         this.lineNumber = range.start.line + 1;
         this.line = document.lineAt(range.start).text;
         this.generator = new DataClassGenerator(document.getText());
         this.clazz = this.getClass();
 
+        // * Class independent code actions.
+        const codeActions = [
+            this.createImportsFix(),
+        ];
+
         if (this.clazz == null || !this.clazz.isValid) {
-            return;
+            return codeActions;
         }
 
-        const requiredFix = this.createMakeRequiredFix();
-        if (requiredFix != null) codeActions.push(requiredFix);
+        // * Class code actions.
+        codeActions.push(this.createMakeRequiredFix());
 
-        const validLine = this.lineNumber == this.clazz.startsAtLine || this.lineNumber == this.clazz.constrStartsAtLine;
+        const line = this.lineNumber;
+        const clazz = this.clazz;
+        const isInProperties = line >= clazz.startsAtLine && line <= clazz.propsEndAtLine
+        const isInConstrRange = line >= clazz.constrStartsAtLine && line <= clazz.constrEndsAtLine;
+        const validLine = isInProperties || isInConstrRange;
         if (!validLine) return codeActions;
 
         if (readSetting('constructor.enabled'))
@@ -1552,7 +1609,7 @@ class DataClassCodeActions {
      */
     createDataClassFix(clazz) {
         const fix = new vscode.CodeAction('Generate data class', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.getReplaceEdit(clazz);
+        fix.edit = this.getClazzEdit(clazz);
         return fix;
     }
 
@@ -1563,8 +1620,15 @@ class DataClassCodeActions {
     constructQuickFix(part, description) {
         const generator = new DataClassGenerator(this.document.getText(), null, false, part);
         const fix = new vscode.CodeAction(description, vscode.CodeActionKind.QuickFix);
-        fix.edit = this.getReplaceEdit(this.findQuickFixClazz(generator));
+        fix.edit = this.getClazzEdit(this.findQuickFixClazz(generator));
         return fix;
+    }
+
+    /**
+     * @param {DartClass} clazz
+     */
+    getClazzEdit(clazz) {
+        return getReplaceEdit(clazz, this.generator.imports);
     }
 
     createConstructorFix() {
@@ -1592,62 +1656,39 @@ class DataClassCodeActions {
     }
 
     createMakeRequiredFix() {
-        /**
-         * @param {string} match
-         */
         const includes = (match) => this.line.includes(match);
 
         if (!includes('@required') && includes('this.') && !includes('=') && this.clazz.constr.includes('})')) {
             if (this.lineNumber > this.clazz.constrStartsAtLine && this.lineNumber < this.clazz.constrEndsAtLine) {
                 const inset = getLineInset(this.line);
                 return this.createFix('Annotate with @required', (edit) => {
-                    edit.insert(this.document.uri, new vscode.Position(this.lineNumber - 1, inset), '@required ');
+                    edit.insert(
+                        this.uri,
+                        new vscode.Position(this.lineNumber - 1, inset),
+                        '@required ',
+                    );
                 });
             }
         }
-
-        return null;
     }
 
-    /**
-     * @param {DataClassGenerator} generator
-     */
+    createImportsFix() {
+        const imports = this.generator.imports;
+        const inImportsRange = this.lineNumber >= imports.startAtLine && this.lineNumber <= imports.endAtLine;
+        console.log(`${this.lineNumber}, ${imports.startAtLine}, ${imports.endAtLine}`);
+        if (inImportsRange) {
+            return this.createFix('Order imports', (edit) => {
+                edit.replace(this.uri, imports.range, imports.formatted);
+            });
+        }
+    }
+
+    /** @param {DataClassGenerator} generator */
     findQuickFixClazz(generator) {
         for (let clazz of generator.clazzes) {
             if (clazz.name == this.clazz.name)
                 return clazz;
         }
-    }
-
-    /**
-     * @param {DartClass} clazz
-     */
-    getReplaceEdit(clazz) {
-        const edit = new vscode.WorkspaceEdit();
-        const uri = this.document.uri;
-
-        edit.replace(uri, new vscode.Range(
-            new vscode.Position((clazz.startsAtLine - 1), 0),
-            new vscode.Position(clazz.endsAtLine, 1)
-        ), clazz.getClassReplacement(false));
-
-        // If imports need to be inserted, do it at the top of the file.
-        if (clazz.hasImports) {
-            if (clazz.lastImportLine == 0) {
-                edit.insert(
-                    uri,
-                    new vscode.Position(0, 0),
-                    clazz.formattedImports
-                );
-            } else {
-                edit.replace(uri, new vscode.Range(
-                    new vscode.Position(0, 0),
-                    new vscode.Position(clazz.lastImportLine, 1)
-                ), removeEnd(clazz.formattedImports, '\n'));
-            }
-        }
-
-        return edit;
     }
 
     getClass() {
@@ -1657,6 +1698,71 @@ class DataClassCodeActions {
             }
         }
     }
+}
+
+/**
+ * @param {any} values
+ * @param {Imports} imports
+ */
+function getReplaceEdit(values, imports = null, showLogs = false) {
+    /** @type {DartClass[]} */
+    const clazzes = values instanceof DartClass ? [values] : values;
+    const hasMultiple = clazzes.length > 1;
+    const edit = new vscode.WorkspaceEdit();
+    const uri = getDoc().uri;
+
+    const noChanges = [];
+    for (var i = clazzes.length - 1; i >= 0; i--) {
+        const clazz = clazzes[i];
+        const isFirst = i == clazzes.length - 1;
+
+        if (clazz.isValid) {
+            if (clazz.didChange) {
+                let replacement = clazz.getClassReplacement();
+                // Seperate the classes with a new line when multiple
+                // classes are being generated.
+                if (hasMultiple && !isFirst) {
+                    replacement += '\n';
+                }
+
+                if (!isBlank(replacement)) {
+                    edit.replace(uri, new vscode.Range(
+                        new vscode.Position((clazz.startsAtLine - 1), 0),
+                        new vscode.Position(clazz.endsAtLine, 1)
+                    ), replacement);
+                }
+            } else if (showLogs) {
+                noChanges.push(clazz.name);
+                if (i == 0) {
+                    const info = noChanges.length == 1 ? `class ${noChanges[0]}` : `classes ${noChanges.join(', ')}`;
+                    showInfo(`No changes detected for ${info}`);
+                }
+            }
+        } else if (showLogs) {
+            showError(clazz.issue);
+        }
+    }
+
+    // If imports need to be inserted, do it at the top of the file.
+    if (imports != null && imports.hasImports) {
+        // Imports must be seperated by at least one line because otherwise we get an overlapping range error
+        // from the vscode editor.
+        const areImportsSeperated = !hasMultiple || (imports.startAtLine || 0) < clazzes[0].startsAtLine - 1;
+        if (imports.hasPreviousImports && areImportsSeperated) {
+            edit.replace(uri, imports.range, imports.formatted);
+        } else {
+            edit.insert(uri, new vscode.Position(imports.startAtLine, 0), imports.formatted + '\n');
+        }
+    }
+
+    return edit;
+}
+
+/**
+ * @param {string} str
+ */
+function isBlank(str) {
+    return (!str || /^\s*$/.test(str));
 }
 
 /**

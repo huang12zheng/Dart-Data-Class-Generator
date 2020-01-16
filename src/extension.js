@@ -974,7 +974,7 @@ class DataClassGenerator {
 	 */
     insertEquatable(clazz) {
         // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
-        if (clazz.hasSuperclass && !clazz.superclass.includes('Base')) {
+        if (!clazz.hasSuperclass || !clazz.superclass.includes('Base')) {
             this.requiresImport('package:equatable/equatable.dart');
             this.addMixin('EquatableMixin');
         }

@@ -439,7 +439,7 @@ class Imports {
         if (file.scheme === 'file') {
             const folder = vscode.workspace.getWorkspaceFolder(file);
             if (folder) {
-                workspace = path.basename(folder.uri.fsPath);
+                workspace = path.basename(folder.uri.fsPath).replace('-', '_');
             }
         }
 
@@ -464,18 +464,21 @@ class Imports {
         }
 
         let imps = '';
-        const addImports = function (imports) {
-            imports.sort();
-            for (let i = 0; i < imports.length; i++) {
-                const isLast = i == imports.length - 1;
-                const imp = imports[i];
-                imps += imp + '\n';
+        const addImports = /**
+         * @param {any[]} imports
+         */
+            function (imports) {
+                imports.sort();
+                for (let i = 0; i < imports.length; i++) {
+                    const isLast = i == imports.length - 1;
+                    const imp = imports[i];
+                    imps += imp + '\n';
 
-                if (isLast) {
-                    imps += '\n';
+                    if (isLast) {
+                        imps += '\n';
+                    }
                 }
             }
-        }
 
         addImports(dartImports);
         addImports(packageImports);
@@ -531,13 +534,15 @@ class ClassProperty {
 	 * @param {String} name
 	 * @param {number} line
 	 * @param {boolean} isFinal
+	 * @param {boolean} isConst
 	 */
-    constructor(type, name, line = 1, isFinal = true) {
+    constructor(type, name, line = 1, isFinal = true, isConst = false) {
         this.type = type;
         this.jsonName = name;
         this.name = toVarName(name);
         this.line = line;
         this.isFinal = isFinal;
+        this.isConst = isConst;
     }
 
     get isList() {
@@ -677,7 +682,7 @@ class DataClassGenerator {
                 } else {
                     if (readSetting('equality.enabled') && this.isPart('equality'))
                         this.insertEquality(clazz);
-                    if (readSetting('hashCode.enabled') && this.isPart('hashCode'))
+                    if (readSetting('hashCode.enabled') && this.isPart('equality'))
                         this.insertHash(clazz);
                 }
             }
@@ -730,22 +735,79 @@ class DataClassGenerator {
      * E.g. when the dev changed the parameter from this.x to this.x = y the generator inserts
      * this.x = y. This way the generator can preserve changes made in the constructor.
      * 
-     * @param {string} p
-	 * @param {DartClass} clazz
+     * @param {ClassProperty|string} prop
      */
-    findConstrParameter(p, clazz) {
-        // Always return null for non-existent or single line constructors.
-        if (clazz.hasConstructor && clazz.constrStartsAtLine != clazz.constrEndsAtLine) {
-            const lines = clazz.constr.split('\n');
-            for (let line of lines) {
-                for (let w of line.trim().split(' ')) {
-                    // Search for this.[x]. If found, return trimmed line.
-                    if (removeEnd(w, ',') == p) return line.trim();
-                }
+    findConstrParameter(prop, oldProps) {
+        const name = typeof prop === 'string' ? prop : prop.name;
+        for (let oldProp of oldProps) {
+            if (name === oldProp.name) {
+                return oldProp.text;
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param {DartClass} clazz
+     */
+    findOldConstrProperties(clazz) {
+        if (!clazz.hasConstructor || clazz.constrStartsAtLine == clazz.constrEndsAtLine) {
+            return [];
+        }
+
+        let oldConstr = '';
+        let brackets = 0;
+        let didFindConstr = false;
+        for (let c of clazz.constr) {
+            if (c == '(') {
+                brackets++;
+                didFindConstr = true;
+                continue;
+            } else if (c == ')') {
+                brackets--;
+                if (didFindConstr && brackets == 0)
+                    break;
+            }
+
+            if (brackets == 1)
+                oldConstr += c;
+        }
+
+        oldConstr = removeStart(oldConstr, ['{', '[']);
+        oldConstr = removeEnd(oldConstr, ['}', ']']);
+
+        let oldArguments = oldConstr.split('\n');
+        const oldProperties = [];
+        for (let arg of oldArguments) {
+            let formatted = arg.replace('@required', '').trim();
+            if (formatted.indexOf('=') != -1) {
+                formatted = formatted.substring(0, formatted.indexOf('='));
+            }
+
+            let name = null;
+            let isThis = false;
+            if (formatted.startsWith('this.')) {
+                name = formatted.replace('this.', '');
+                isThis = true;
+            } else {
+                const words = formatted.split(' ');
+                if (words.length >= 1) {
+                    const w = words[1];
+                    if (!isBlank(w)) name = w;
+                }
+            }
+
+            if (name != null) {
+                oldProperties.push({
+                    "name": removeEnd(name.trim(), ','),
+                    "text": arg.trim() + '\n',
+                    "isThis": isThis,
+                });
+            }
+        }
+
+        return oldProperties;
     }
 
 	/**
@@ -772,9 +834,11 @@ class DataClassGenerator {
 
             // Detect custom constructor brackets and preserve them.
             const fConstr = clazz.constr.replace('const', '').trimLeft();
+
             if (fConstr.startsWith(clazz.name + '([')) startBracket = '([';
             else if (fConstr.startsWith(clazz.name + '({')) startBracket = '({';
             else startBracket = '(';
+
             if (fConstr.includes('])')) endBracket = '])';
             else if (fConstr.includes('})')) endBracket = '})';
             else endBracket = ')';
@@ -783,18 +847,27 @@ class DataClassGenerator {
         constr += clazz.name + startBracket + '\n';
         if (clazz.isWidget) constr += '  Key key,\n'
 
-        for (let p of clazz.properties) {
-            let parameter = `this.${p.name}`
-            const fp = this.findConstrParameter(parameter, clazz);
-            const addDefault = endBracket != ')' && defVal && !required && ((p.isPrimitive || p.isList) && p.type != 'dynamic');
+        const oldProperties = this.findOldConstrProperties(clazz);
+
+        for (let prop of oldProperties) {
+            if (!prop.isThis) {
+                constr += '  ' + prop.text;
+            }
+        }
+
+        for (let prop of clazz.properties) {
+            const oldProperty = this.findConstrParameter(prop, oldProperties);
+            if (oldProperty != null) {
+                constr += '  ' + oldProperty;
+                continue;
+            }
+
+            let parameter = `this.${prop.name}`
+            const addDefault = endBracket != ')' && defVal && !required && ((prop.isPrimitive || prop.isList) && prop.type != 'dynamic');
 
             constr += '  ';
             if (required) parameter = '@required ' + parameter;
-            if (fp == null) {
-                constr += `${parameter}${addDefault ? ` = ${p.defValue}` : ''}` + ',';
-            } else {
-                constr += fp;
-            }
+            constr += `${parameter}${addDefault ? ` = ${prop.defValue}` : ''}` + ',';
             constr += '\n';
         }
 
@@ -857,21 +930,23 @@ class DataClassGenerator {
         /**
          * @param {ClassProperty} prop
          */
-        const customTypeMapping = function (prop, name = null, endFlag = ',\n') {
-            prop = prop.isList ? prop.listType : prop;
-            name = name == null ? prop.name : name;
-            switch (prop.type) {
-                case 'DateTime':
-                    return `${name}.millisecondsSinceEpoch${endFlag}`;
-                case 'Color':
-                    return `${name}.value${endFlag}`;
-                case 'IconData':
-                    return `${name}.codePoint${endFlag}`
-                default:
-                    return `${name}${!prop.isPrimitive ? '.toMap()' : ''}${endFlag}`;
-            }
+        const customTypeMapping = /**
+         */
+            function (prop, name = null, endFlag = ',\n') {
+                prop = prop.isList ? prop.listType : prop;
+                name = name == null ? prop.name : name;
+                switch (prop.type) {
+                    case 'DateTime':
+                        return `${name}.millisecondsSinceEpoch${endFlag}`;
+                    case 'Color':
+                        return `${name}.value${endFlag}`;
+                    case 'IconData':
+                        return `${name}.codePoint${endFlag}`
+                    default:
+                        return `${name}${!prop.isPrimitive ? '.toMap()' : ''}${endFlag}`;
+                }
 
-        }
+            }
 
         let method = `Map<String, dynamic> toMap() {\n`;
         method += '  return {\n';
@@ -906,23 +981,25 @@ class DataClassGenerator {
         /**
          * @param {ClassProperty} prop
          */
-        const customTypeMapping = function (prop, value = null) {
-            prop = prop.isList ? prop.listType : prop;
-            const addDefault = defVal && prop.type != 'dynamic';
-            const endFlag = value == null ? ',\n' : '';
-            value = value == null ? "map['" + prop.jsonName + "']" : value;
+        const customTypeMapping = /**
+         */
+            function (prop, value = null) {
+                prop = prop.isList ? prop.listType : prop;
+                const addDefault = defVal && prop.type != 'dynamic';
+                const endFlag = value == null ? ',\n' : '';
+                value = value == null ? "map['" + prop.jsonName + "']" : value;
 
-            switch (prop.type) {
-                case 'DateTime':
-                    return `DateTime.fromMillisecondsSinceEpoch(${value})${endFlag}`;
-                case 'Color':
-                    return `Color(${value})${endFlag}`;
-                case 'IconData':
-                    return `IconData(${value}, fontFamily: 'MaterialIcons')${endFlag}`
-                default:
-                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault ? ` ?? ${prop.defValue}` : ''}${endFlag}`;
+                switch (prop.type) {
+                    case 'DateTime':
+                        return `DateTime.fromMillisecondsSinceEpoch(${value})${endFlag}`;
+                    case 'Color':
+                        return `Color(${value})${endFlag}`;
+                    case 'IconData':
+                        return `IconData(${value}, fontFamily: 'MaterialIcons')${endFlag}`
+                    default:
+                        return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault ? ` ?? ${prop.defValue}` : ''}${endFlag}`;
+                }
             }
-        }
 
         let method = 'static ' + clazz.name + ' fromMap(Map<String, dynamic> map) {\n';
         method += '  if (map == null) return null;\n\n';
@@ -1219,6 +1296,7 @@ class DataClassGenerator {
                         let type = null;
                         let name = null;
                         let isFinal = false;
+                        let isConst = false;
 
                         const words = line.trim().split(' ');
                         for (let i = 0; i < words.length; i++) {
@@ -1226,7 +1304,11 @@ class DataClassGenerator {
                             const isLast = i == words.length - 1;
 
                             if (word.length > 0 && word != '}' && word != '{') {
-                                if (word == 'final') isFinal = true;
+                                if (word == 'final') {
+                                    isFinal = true;
+                                } else if (i == 0 && word == 'const') {
+                                    isConst = true;
+                                }
 
                                 // Be sure to not include keywords.
                                 if (word != 'final' && word != 'const') {
@@ -1247,7 +1329,9 @@ class DataClassGenerator {
                         }
 
                         if (type != null && name != null) {
-                            clazz.properties.push(new ClassProperty(type, name, linePos, isFinal));
+                            clazz.properties.push(
+                                new ClassProperty(type, name, linePos, isFinal, isConst)
+                            );
                         }
                     }
                 }
@@ -1680,6 +1764,9 @@ class DataClassCodeActions {
     }
 
     createMakeRequiredFix() {
+        /**
+         * @param {string} match
+         */
         const includes = (match) => this.line.includes(match);
 
         if (!includes('@required') && includes('this.') && !includes('=') && this.clazz.constr.includes('})')) {
@@ -1697,16 +1784,16 @@ class DataClassCodeActions {
     }
 
     createImportsFix() {
-        const imports = this.generator.imports;
+        const imports = new Imports(this.document.getText());
         if (!imports.didChange) return;
 
         const inImportsRange = this.lineNumber >= imports.startAtLine && this.lineNumber <= imports.endAtLine;
         if (inImportsRange) {
-            let title = 'Order imports';
+            let title = 'Sort imports';
             if (imports.hasImportDeclaration && imports.hasExportDeclaration) {
-                title = 'Order imports/exports';
+                title = 'Sort imports/exports';
             } else if (imports.hasExportDeclaration) {
-                title = 'Order exports';
+                title = 'Sort exports';
             }
 
             return this.createFix(title, (edit) => {
@@ -1990,22 +2077,35 @@ function capitalize(source) {
 
 /**
  * @param {string} source
- * @param {string} start
+ * @param {string | any[]} start
  */
 function removeStart(source, start) {
-    return source.startsWith(start) ? source.substring(start.length, source.length) : source;
+    if (Array.isArray(start)) {
+        let result = source.trim();
+        for (let s of start) {
+            result = removeStart(result, s).trim();
+        }
+        return result;
+    } else {
+        return source.startsWith(start) ? source.substring(start.length, source.length) : source;
+    }
 }
 
 /**
  * @param {string} source
- * @param {string} end
+ * @param {string | any[]} end
  */
 function removeEnd(source, end) {
-    const pos = (source.length - end.length);
-    if (source.endsWith(end)) {
-        return source.substring(0, pos);
+    if (Array.isArray(end)) {
+        let result = source.trim();
+        for (let e of end) {
+            result = removeEnd(result, e).trim();
+        }
+        return result;
+    } else {
+        const pos = (source.length - end.length);
+        return source.endsWith(end) ? source.substring(0, pos) : source;
     }
-    return source;
 }
 
 /**

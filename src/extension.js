@@ -848,7 +848,6 @@ class DataClassGenerator {
         if (clazz.isWidget) constr += '  Key key,\n'
 
         const oldProperties = this.findOldConstrProperties(clazz);
-
         for (let prop of oldProperties) {
             if (!prop.isThis) {
                 constr += '  ' + prop.text;
@@ -858,7 +857,8 @@ class DataClassGenerator {
         for (let prop of clazz.properties) {
             const oldProperty = this.findConstrParameter(prop, oldProperties);
             if (oldProperty != null) {
-                constr += '  ' + oldProperty;
+                if (oldProperty.isThis)
+                    constr += '  ' + oldProperty;
                 continue;
             }
 
@@ -1180,6 +1180,7 @@ class DataClassGenerator {
     appendOrReplace(name, n, finder, clazz) {
         let part = this.findPart(name, finder, clazz);
         let replacement = removeEnd(indent(n.replace('@override\n', '')), '\n');
+
         if (part != null) {
             part.replacement = replacement;
             if (!areStrictEqual(part.current, part.replacement)) {
@@ -1232,28 +1233,28 @@ class DataClassGenerator {
                 let mixinsNext = false;
 
                 for (let word of line.split(' ')) {
+                    word = word.trim();
                     if (word.length > 0 && word != '{') {
                         if (word.endsWith('{')) {
-                            word = word.substring(0, word.length - 1);
+                            word = word.substr(0, word.length - 1);
                         }
 
                         if (word == 'class') {
                             classNext = true;
                         } else if (classNext) {
                             classNext = false;
-                            let name = word;
 
                             // Remove generics from class name.
-                            if (name.includes('<')) {
-                                clazz.genericType = name.substring(
-                                    name.indexOf('<'),
-                                    name.lastIndexOf('>') + 1,
+                            if (word.includes('<')) {
+                                clazz.genericType = word.substring(
+                                    word.indexOf('<'),
+                                    word.lastIndexOf('>') + 1,
                                 );
 
-                                name = name.substring(0, name.indexOf('<'));
+                                word = word.substring(0, word.indexOf('<'));
                             }
 
-                            clazz.name = name;
+                            clazz.name = word;
                         } else if (word == 'extends') {
                             extendsNext = true;
                         } else if (extendsNext) {
@@ -1764,20 +1765,45 @@ class DataClassCodeActions {
     }
 
     createMakeRequiredFix() {
-        /**
-         * @param {string} match
-         */
-        const includes = (match) => this.line.includes(match);
+        if (!this.clazz.hasConstructor) return;
 
-        if (!includes('@required') && includes('this.') && !includes('=') && this.clazz.constr.includes('})')) {
-            if (this.lineNumber > this.clazz.constrStartsAtLine && this.lineNumber < this.clazz.constrEndsAtLine) {
+        const includes = (match) => this.line.includes(match);
+        const line = this.lineNumber;
+        const constr = this.clazz.constr;
+
+        if (constr.includes('})') && !includes('@required') && !includes('=')) {
+            // Dart also supports non named and named parameters in the same constructor.
+            // Therefore we have to account for this and find the line number when the named
+            // parameters begin.
+            let namedParametersStartAtLine = this.clazz.constrStartsAtLine;
+            const lines = constr.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.includes('{')) {
+                    namedParametersStartAtLine = this.clazz.constrStartsAtLine + i;
+                    break;
+                }
+            }
+
+            if (line > namedParametersStartAtLine && line < this.clazz.constrEndsAtLine) {
+                const imports = new Imports(this.document.getText());
+                imports.requiresImport('package:flutter/foundation.dart', [
+                    'package:flutter/material.dart',
+                    'package:flutter/cupertino.dart',
+                    'package:flutter/widgets.dart'
+                ]);
+
                 const inset = getLineInset(this.line);
                 return this.createFix('Annotate with @required', (edit) => {
                     edit.insert(
                         this.uri,
-                        new vscode.Position(this.lineNumber - 1, inset),
+                        new vscode.Position(line - 1, inset),
                         '@required ',
                     );
+
+                    if (imports.didChange) {
+                        edit.replace(this.uri, imports.range, imports.formatted);
+                    }
                 });
             }
         }

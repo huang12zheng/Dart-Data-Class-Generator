@@ -10,7 +10,7 @@ The generator can generate the `constructor`, `copyWith`, `toMap`, `fromMap`, `t
 
 ![](assets/gif_from_class.gif)
 
-### **How?**
+### **Usage**
 
 You can generate data classes either by the quick fix dialog or by running a command. In the quick fix dialog you have the option to not only generate whole data classes but also only specific methods. The command has the advantage of being able to generate multiple classes at the same time and also giving you error messages if there are errors in your class that make it impossible for the generator to work.
 
@@ -39,7 +39,7 @@ to find the changes and replace the class with its updated version. **Note that 
 
 ![](assets/gif_from_json.gif)
 
-### **How?**
+### **Usage**
 
 - Create an **empty dart** file.
 - Paste the **raw JSON** into the otherwise empty file.

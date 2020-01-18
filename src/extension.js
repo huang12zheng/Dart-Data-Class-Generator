@@ -303,7 +303,7 @@ class DartClass {
         return null;
     }
 
-    getClassReplacement() {
+    generateClassReplacement() {
         let replacement = '';
         let lines = this.classContent.split('\n');
 
@@ -312,27 +312,28 @@ class DartClass {
             let l = this.startsAtLine + i;
 
             if (i == 0) {
-                let classLine = 'class ' + this.name + this.genericType;
+                const classType = this.isAbstract ? 'abstract class' : 'class';
+                let classDeclaration = classType + ' ' + this.name + this.genericType;
                 if (this.superclass != null) {
-                    classLine += ' extends ' + this.superclass;
+                    classDeclaration += ' extends ' + this.superclass;
                 }
 
                 if (this.hasMixins) {
                     let length = this.mixins.length;
-                    classLine += ' with '
+                    classDeclaration += ' with '
                     for (let m = 0; m < length; m++) {
                         let isLast = m == length - 1;
                         let mixin = this.mixins[m];
-                        classLine += mixin;
+                        classDeclaration += mixin;
 
                         if (!isLast) {
-                            classLine += ', ';
+                            classDeclaration += ', ';
                         }
                     }
                 }
 
-                classLine += ' {\n';
-                replacement = classLine + replacement;
+                classDeclaration += ' {\n';
+                replacement = classDeclaration + replacement;
             } else if (l == this.propsEndAtLine && this.constr != null && !this.hasConstructor) {
                 replacement = this.constr + replacement;
                 replacement = line + replacement;
@@ -628,7 +629,7 @@ class DataClassGenerator {
     constructor(text, clazzes = null, fromJSON = false, part = null) {
         this.text = text;
         this.fromJSON = fromJSON;
-        this.clazzes = clazzes == null ? this.getClasses() : clazzes;
+        this.clazzes = clazzes == null ? this.parseAndReadClasses() : clazzes;
         this.imports = new Imports(text);
         this.part = part;
         this.generateDataClazzes();
@@ -663,17 +664,20 @@ class DataClassGenerator {
             if (insertConstructor)
                 this.insertConstructor(clazz);
 
-            if (!clazz.isWidget && !clazz.isAbstract) {
-                if (readSetting('copyWith.enabled') && this.isPart('copyWith'))
-                    this.insertCopyWith(clazz);
-                if (readSetting('toMap.enabled') && this.isPart('serialization'))
-                    this.insertToMap(clazz);
-                if (readSetting('fromMap.enabled') && this.isPart('serialization'))
-                    this.insertFromMap(clazz);
-                if (readSetting('toJson.enabled') && this.isPart('serialization'))
-                    this.insertToJson(clazz);
-                if (readSetting('fromJson.enabled') && this.isPart('serialization'))
-                    this.insertFromJson(clazz);
+            if (!clazz.isWidget) {
+                if (!clazz.isAbstract) {
+                    if (readSetting('copyWith.enabled') && this.isPart('copyWith'))
+                        this.insertCopyWith(clazz);
+                    if (readSetting('toMap.enabled') && this.isPart('serialization'))
+                        this.insertToMap(clazz);
+                    if (readSetting('fromMap.enabled') && this.isPart('serialization'))
+                        this.insertFromMap(clazz);
+                    if (readSetting('toJson.enabled') && this.isPart('serialization'))
+                        this.insertToJson(clazz);
+                    if (readSetting('fromJson.enabled') && this.isPart('serialization'))
+                        this.insertFromJson(clazz);
+                }
+
                 if (readSetting('toString.enabled') && this.isPart('toString'))
                     this.insertToString(clazz);
 
@@ -734,14 +738,14 @@ class DataClassGenerator {
      * If class already exists and has a constructor with the parameter, reuse that parameter.
      * E.g. when the dev changed the parameter from this.x to this.x = y the generator inserts
      * this.x = y. This way the generator can preserve changes made in the constructor.
-     * 
-     * @param {ClassProperty|string} prop
+     * @param {ClassProperty | string} prop
+     * @param {{ "name": string; "text": string; "isThis": boolean; }[]} oldProps
      */
     findConstrParameter(prop, oldProps) {
         const name = typeof prop === 'string' ? prop : prop.name;
         for (let oldProp of oldProps) {
             if (name === oldProp.name) {
-                return oldProp.text;
+                return oldProp;
             }
         }
 
@@ -761,6 +765,7 @@ class DataClassGenerator {
         let didFindConstr = false;
         for (let c of clazz.constr) {
             if (c == '(') {
+                if (didFindConstr) oldConstr += c;
                 brackets++;
                 didFindConstr = true;
                 continue;
@@ -782,7 +787,7 @@ class DataClassGenerator {
         for (let arg of oldArguments) {
             let formatted = arg.replace('@required', '').trim();
             if (formatted.indexOf('=') != -1) {
-                formatted = formatted.substring(0, formatted.indexOf('='));
+                formatted = formatted.substring(0, formatted.indexOf('=')).trim();
             }
 
             let name = null;
@@ -858,7 +863,8 @@ class DataClassGenerator {
             const oldProperty = this.findConstrParameter(prop, oldProperties);
             if (oldProperty != null) {
                 if (oldProperty.isThis)
-                    constr += '  ' + oldProperty;
+                    constr += '  ' + oldProperty.text;
+
                 continue;
             }
 
@@ -1136,17 +1142,18 @@ class DataClassGenerator {
 
         const props = clazz.properties;
         const short = props.length <= 4;
-        const split = ', ';
-        const startFlag = '[';
-        const endFlag = ']';
+        const split = short ? ', ' : ',\n';
         let method = '@override\n';
         method += `List<Object> get props ${!short ? '{\n' : '=>'}`;
-        method += `${!short ? '  return' : ''} ` + startFlag;
-        for (let p of props) {
-            method += p.name + split;
-            if (p.name == props[props.length - 1].name) {
-                method = removeEnd(method, split);
-                method += endFlag + ";" + (short ? '' : '\n');
+        method += `${!short ? '  return' : ''} ` + '[' + (!short ? '\n' : '');
+        for (let prop of props) {
+            const isLast = prop.name == props[props.length - 1].name;
+            const inset = !short ? '    ' : '';
+            method += inset + prop.name + split;
+
+            if (isLast) {
+                if (short) method = removeEnd(method, split);
+                method += (!short ? '  ' : '') + '];' + (!short ? '\n' : '');
             }
         }
         method += !short ? '}' : '';
@@ -1208,7 +1215,7 @@ class DataClassGenerator {
         clazz.toReplace.push(part);
     }
 
-    getClasses() {
+    parseAndReadClasses() {
         let clazzes = [];
         let clazz = new DartClass();
 
@@ -1216,9 +1223,9 @@ class DataClassGenerator {
         let curlyBrackets = 0;
         let brackets = 0;
 
-        for (let x = 0; x < lines.length; x++) {
-            const line = lines[x];
-            const linePos = x + 1;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const linePos = i + 1;
             // Make sure to look for 'class ' with the space in order to allow
             // fields that contain the word 'class' as in classifire.
             // issue: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/2
@@ -1283,7 +1290,7 @@ class DataClassGenerator {
                 // class can be closed.
                 curlyBrackets += count(line, '{');
                 curlyBrackets -= count(line, '}');
-                // Count brackets, e.g. to find the of the constructor.
+                // Count brackets, e.g. to find the constructor.
                 brackets += count(line, '(');
                 brackets -= count(line, ')');
 
@@ -1293,6 +1300,7 @@ class DataClassGenerator {
                         !includesOne(line, ['static', ' set ', ' get ', '{', '}', '=>', 'return', '@']) &&
                         // Do not include final values that are assigned a value.
                         !includesAll(line, ['final', '=']);
+
                     if (lineValid) {
                         let type = null;
                         let name = null;
@@ -1314,7 +1322,9 @@ class DataClassGenerator {
                                 // Be sure to not include keywords.
                                 if (word != 'final' && word != 'const') {
                                     // If word ends with semicolon => variable name, else type.
-                                    const isVariable = word.endsWith(';') || (!isLast && (words[i + 1] == '='));
+                                    let isVariable = word.endsWith(';') || (!isLast && (words[i + 1] == '='));
+                                    // Make sure we don't capture abstract functions like: String func();
+                                    isVariable = isVariable && !includesOne(word, ['(', ')']);
                                     if (isVariable) {
                                         if (name == null)
                                             name = removeEnd(word, ';');
@@ -1580,6 +1590,10 @@ class JsonReader {
             const file = this.files[i];
             const isLast = i == length - 1;
             const generator = new DataClassGenerator(file.content, [file.clazz], true);
+
+            if (seperate)
+                this.addGeneratedFilesAsImport(generator)
+
             const imports = `${generator.imports.formatted}\n`;
 
             progress.report({
@@ -1589,9 +1603,8 @@ class JsonReader {
 
             if (seperate) {
                 const clazz = generator.clazzes[0];
-                this.addGeneratedFilesAsImport(generator)
 
-                const replacement = imports + clazz.getClassReplacement();
+                const replacement = imports + clazz.generateClassReplacement();
                 if (i > 0) {
                     await writeFile(replacement, file.name, false, path);
                 } else {
@@ -1605,7 +1618,7 @@ class JsonReader {
             } else {
                 // Insert in current file when JSON should not be seperated.
                 for (let clazz of generator.clazzes) {
-                    fileContent += clazz.getClassReplacement() + '\n\n';
+                    fileContent += clazz.generateClassReplacement() + '\n\n';
                 }
 
                 if (isLast) {
@@ -1670,13 +1683,19 @@ class DataClassCodeActions {
         if (readSetting('constructor.enabled'))
             codeActions.push(this.createConstructorFix());
 
-        if (!this.clazz.isWidget && !this.clazz.isAbstract) {
+        // Only add constructor fix for widget classes.
+        if (!this.clazz.isWidget) {
             codeActions.splice(0, 0, this.createDataClassFix(this.clazz));
 
-            if (readSetting('copyWith.enabled'))
-                codeActions.push(this.createCopyWithFix());
-            if (readSettings(['toMap.enabled', 'fromMap.enabled', 'toJson.enabled', 'fromJson.enabled']))
-                codeActions.push(this.createSerializationFix());
+            // Copy with and JSON serialization should be handled by
+            // subclasses.
+            if (!this.clazz.isAbstract) {
+                if (readSetting('copyWith.enabled'))
+                    codeActions.push(this.createCopyWithFix());
+                if (readSettings(['toMap.enabled', 'fromMap.enabled', 'toJson.enabled', 'fromJson.enabled']))
+                    codeActions.push(this.createSerializationFix());
+            }
+
             if (readSetting('toString.enabled'))
                 codeActions.push(this.createToStringFix());
 
@@ -1684,7 +1703,6 @@ class DataClassCodeActions {
                 codeActions.push(this.createUseEquatableFix());
             else if (readSettings(['equality.enabled', 'hashCode.enabled']))
                 codeActions.push(this.createEqualityFix());
-
         }
 
         return codeActions;
@@ -1854,7 +1872,7 @@ function getReplaceEdit(values, imports = null, showLogs = false) {
 
         if (clazz.isValid) {
             if (clazz.didChange) {
-                let replacement = clazz.getClassReplacement();
+                let replacement = clazz.generateClassReplacement();
                 // Seperate the classes with a new line when multiple
                 // classes are being generated.
                 if (!clazz.isLastInFile) {

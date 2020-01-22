@@ -1239,6 +1239,10 @@ class DataClassGenerator {
                 let extendsNext = false;
                 let mixinsNext = false;
 
+                // Reset brackets count when a new class was detected.
+                curlyBrackets = 0;
+                brackets = 0;
+
                 for (let word of line.split(' ')) {
                     word = word.trim();
                     if (word.length > 0 && word != '{') {
@@ -1350,14 +1354,14 @@ class DataClassGenerator {
                 // Detect beginning of constructor by looking for the class name and a bracket, while also
                 // making sure not to falsely detect a function constructor invocation with the actual 
                 // constructor with boilerplaty checking all possible constructor options.
-                let name = clazz.name;
-                let includesConstr = line.replace('const', '').trimLeft().startsWith(name + '(');
+                const includesConstr = line.replace('const', '').trimLeft().startsWith(clazz.name + '(');
                 if (includesConstr && !classLine) {
                     clazz.constrStartsAtLine = linePos;
                 }
 
                 if (clazz.constrStartsAtLine != null && clazz.constrEndsAtLine == null) {
                     clazz.constr = clazz.constr == null ? line + '\n' : clazz.constr + line + '\n';
+
                     // Detect end of constructor.
                     if (brackets == 0) {
                         clazz.constrEndsAtLine = linePos;

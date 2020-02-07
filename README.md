@@ -12,7 +12,7 @@ The generator can generate the `constructor`, `copyWith`, `toMap`, `fromMap`, `t
 
 ### **Usage**
 
-You can generate data classes either by the quick fix dialog or by running a command. In the quick fix dialog you have the option to not only generate whole data classes but also only specific methods. The command has the advantage of being able to generate multiple classes at the same time and also giving you error messages if there are errors in your class that make it impossible for the generator to work.
+You can generate data classes either by the quick fix dialog or by running a command. In the quick fix dialog you have the option to not only generate whole data classes but also only specific methods. The command has the advantage of being able to generate multiple classes at the same time.
 
 #### **Quick fix**
 
@@ -29,11 +29,10 @@ You can generate data classes either by the quick fix dialog or by running a com
 - When there are multiple classes in the current file, choose the ones you'd like to create data classes of in the dialog.
 
 It is also possible to run the generator on an existing data class (e.g. when some parameters changed). The generator will then try 
-to find the changes and replace the class with its updated version. **Note that custom changes will be overriden**.
+to find the changes and replace the class with its updated version. **Note that custom changes may be overriden**.
 
 **Note:**  
 **Class properties must be declared before the constructor in order for the generator to detect them.**  
-**If the class is a Widget (Stateless or Stateful) or abstract, only the constructor will be generated. State classes wont be detected.**  
 
 ## Create data classes based on JSON (beta)
 

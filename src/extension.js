@@ -1058,12 +1058,20 @@ class DataClassGenerator {
         const props = clazz.properties;
         let method = '@override\n';
         method += `String toString() ${!short ? '{\n' : '=>'}`;
-        method += `${!short ? '  return' : ''} '` + clazz.name;
+        method += `${!short ? '  return' : ''} '` + `${clazz.name}(`;
         for (let p of props) {
-            method += ' ' + p.name + ': $' + p.name + ',';
-            if (p.name == props[props.length - 1].name) {
+            const name = p.name;
+            const isFirst = name == props[0].name;
+            const isLast = name == props[props.length - 1].name;
+
+            if (!isFirst)
+                method += ' ';
+
+            method += name + ': $' + name + ',';
+
+            if (isLast) {
                 method = removeEnd(method, ',');
-                method += "';" + (short ? '' : '\n');
+                method += ")';" + (short ? '' : '\n');
             }
         }
         method += !short ? '}' : '';

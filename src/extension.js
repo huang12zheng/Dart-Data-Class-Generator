@@ -407,7 +407,7 @@ class Imports {
             const line = lines[i].trim();
             const isLast = i == lines.length - 1;
 
-            if (line.startsWith('import') || line.startsWith('export')) {
+            if (line.startsWith('import') || line.startsWith('export') || line.startsWith('part')) {
                 this.values.push(line);
                 this.rawImports += `${line}\n`;
                 if (this.startAtLine == null) {
@@ -448,11 +448,14 @@ class Imports {
         const packageImports = [];
         const packageLocalImports = [];
         const relativeImports = [];
+        const partStatements = [];
         const exports = [];
 
         for (let imp of this.values) {
             if (imp.startsWith('export')) {
                 exports.push(imp);
+            } else if (imp.startsWith('part')) {
+                partStatements.push(imp);
             } else if (imp.includes('dart:')) {
                 dartImports.push(imp);
             } else if (workspace != null && imp.includes(`package:${workspace}`)) {
@@ -486,6 +489,7 @@ class Imports {
         addImports(packageLocalImports);
         addImports(relativeImports);
         addImports(exports);
+        addImports(partStatements);
 
         return removeEnd(imps, '\n');
     }
@@ -1309,7 +1313,8 @@ class DataClassGenerator {
                 if (clazz.constrStartsAtLine == null && curlyBrackets == 1) {
                     // Check if a line is valid to only include real properties.
                     const lineValid = !line.trimLeft().startsWith(clazz.name) &&
-                        !includesOne(line, ['static', ' set ', ' get ', '{', '}', '=>', 'return', '@']) &&
+                        !includesOne(line, ['{', '}', '=>', '@'], false) &&
+                        !includesOne(line, ['static', ' set ', ' get ', 'return', 'factory']) &&
                         // Do not include final values that are assigned a value.
                         !includesAll(line, ['final', '=']);
 
@@ -2232,11 +2237,20 @@ function removeAll(source, matches) {
 * @param {string} source
 * @param {string[]} matches
 */
-function includesOne(source, matches) {
-    for (let match of matches) {
-        if (source.includes(match))
-            return true;
+function includesOne(source, matches, wordBased = true) {
+    const words = wordBased ? source.split(' ') : [source];
+    for (let word of words) {
+        for (let match of matches) {
+            if (wordBased) {
+                if (word === match)
+                    return true;
+            } else {
+                if (source.includes(match))
+                    return true;
+            }
+        }
     }
+
     return false;
 }
 

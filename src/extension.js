@@ -1825,7 +1825,8 @@ class DataClassCodeActions {
                 imports.requiresImport('package:flutter/foundation.dart', [
                     'package:flutter/material.dart',
                     'package:flutter/cupertino.dart',
-                    'package:flutter/widgets.dart'
+                    'package:flutter/widgets.dart',
+                    'package:meta/meta.dart',
                 ]);
 
                 const inset = getLineInset(this.line);

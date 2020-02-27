@@ -169,6 +169,8 @@ class DartClass {
         /** @type {string} */
         this.superclass = null;
         /** @type {string[]} */
+        this.interfaces = [];
+        /** @type {string[]} */
         this.mixins = [];
         /** @type {string} */
         this.constr = null;
@@ -182,7 +184,7 @@ class DartClass {
         this.constrStartsAtLine = null;
         /** @type {number} */
         this.constrEndsAtLine = null;
-        this.constrDifferent = true;
+        this.constrDifferent = false;
         this.isArray = false;
         this.classContent = '';
         this.toInsert = '';
@@ -229,6 +231,10 @@ class DartClass {
 
     get hasMixins() {
         return this.mixins != null && this.mixins.length > 0;
+    }
+
+    get hasInterfaces() {
+        return this.interfaces != null && this.interfaces.length > 0;
     }
 
     get hasEnding() {
@@ -318,19 +324,28 @@ class DartClass {
                     classDeclaration += ' extends ' + this.superclass;
                 }
 
-                if (this.hasMixins) {
-                    let length = this.mixins.length;
-                    classDeclaration += ' with '
-                    for (let m = 0; m < length; m++) {
-                        let isLast = m == length - 1;
-                        let mixin = this.mixins[m];
-                        classDeclaration += mixin;
+                /**
+                 * @param {string[]} list
+                 * @param {string} keyword
+                 */
+                function addSuperTypes(list, keyword) {
+                    if (list.length == 0) return;
+
+                    const length = list.length;
+                    classDeclaration += ` ${keyword} `;
+                    for (let x = 0; x < length; x++) {
+                        const isLast = x == length - 1;
+                        const type = list[x];
+                        classDeclaration += type;
 
                         if (!isLast) {
                             classDeclaration += ', ';
                         }
                     }
                 }
+
+                addSuperTypes(this.interfaces, 'implements');
+                addSuperTypes(this.mixins, 'with');
 
                 classDeclaration += ' {\n';
                 replacement = classDeclaration + replacement;
@@ -468,21 +483,18 @@ class Imports {
         }
 
         let imps = '';
-        const addImports = /**
-         * @param {any[]} imports
-         */
-            function (imports) {
-                imports.sort();
-                for (let i = 0; i < imports.length; i++) {
-                    const isLast = i == imports.length - 1;
-                    const imp = imports[i];
-                    imps += imp + '\n';
+        function addImports(imports) {
+            imports.sort();
+            for (let i = 0; i < imports.length; i++) {
+                const isLast = i == imports.length - 1;
+                const imp = imports[i];
+                imps += imp + '\n';
 
-                    if (isLast) {
-                        imps += '\n';
-                    }
+                if (isLast) {
+                    imps += '\n';
                 }
             }
+        }
 
         addImports(dartImports);
         addImports(packageImports);
@@ -721,7 +733,7 @@ class DataClassGenerator {
                     part.startsAt = lineNum;
                     part.current = line + '\n';
                 }
-            } else if (part.startsAt != null && part.endsAt == null && (curlies == 2 || singleLine)) {
+            } else if (part.startsAt != null && part.endsAt == null && (curlies >= 2 || singleLine)) {
                 part.current += line + '\n';
             } else if (part.startsAt != null && part.endsAt == null && curlies == 1) {
                 part.endsAt = lineNum;
@@ -779,7 +791,7 @@ class DataClassGenerator {
                     break;
             }
 
-            if (brackets == 1)
+            if (brackets >= 1)
                 oldConstr += c;
         }
 
@@ -854,7 +866,10 @@ class DataClassGenerator {
         }
 
         constr += clazz.name + startBracket + '\n';
-        if (clazz.isWidget) constr += '  Key key,\n'
+        if (clazz.isWidget) {
+            if (clazz.constr == null || !clazz.constr.includes('Key key'))
+                constr += '  Key key,\n';
+        }
 
         const oldProperties = this.findOldConstrProperties(clazz);
         for (let prop of oldProperties) {
@@ -887,7 +902,7 @@ class DataClassGenerator {
 
         if (clazz.constr != null) {
             let i = null;
-            if (clazz.constr.includes(':')) i = clazz.constr.indexOf(':');
+            if (clazz.constr.includes(' : ')) i = clazz.constr.indexOf(' : ') + 1;
             else if (clazz.constr.trimRight().endsWith('{')) i = clazz.constr.lastIndexOf('{');
 
             if (i != null) {
@@ -907,6 +922,7 @@ class DataClassGenerator {
                 this.replace(new ClassPart('constructor', clazz.constrStartsAtLine, clazz.constrEndsAtLine, clazz.constr, constr), clazz);
             }
         } else {
+            clazz.constrDifferent = true;
             this.append(constr, clazz, true);
         }
     }
@@ -940,23 +956,21 @@ class DataClassGenerator {
         /**
          * @param {ClassProperty} prop
          */
-        const customTypeMapping = /**
-         */
-            function (prop, name = null, endFlag = ',\n') {
-                prop = prop.isList ? prop.listType : prop;
-                name = name == null ? prop.name : name;
-                switch (prop.type) {
-                    case 'DateTime':
-                        return `${name}.millisecondsSinceEpoch${endFlag}`;
-                    case 'Color':
-                        return `${name}.value${endFlag}`;
-                    case 'IconData':
-                        return `${name}.codePoint${endFlag}`
-                    default:
-                        return `${name}${!prop.isPrimitive ? '.toMap()' : ''}${endFlag}`;
-                }
-
+        function customTypeMapping(prop, name = null, endFlag = ',\n') {
+            prop = prop.isList ? prop.listType : prop;
+            name = name == null ? prop.name : name;
+            switch (prop.type) {
+                case 'DateTime':
+                    return `${name}.millisecondsSinceEpoch${endFlag}`;
+                case 'Color':
+                    return `${name}.value${endFlag}`;
+                case 'IconData':
+                    return `${name}.codePoint${endFlag}`
+                default:
+                    return `${name}${!prop.isPrimitive ? '.toMap()' : ''}${endFlag}`;
             }
+
+        }
 
         let method = `Map<String, dynamic> toMap() {\n`;
         method += '  return {\n';
@@ -991,25 +1005,23 @@ class DataClassGenerator {
         /**
          * @param {ClassProperty} prop
          */
-        const customTypeMapping = /**
-         */
-            function (prop, value = null) {
-                prop = prop.isList ? prop.listType : prop;
-                const addDefault = defVal && prop.type != 'dynamic';
-                const endFlag = value == null ? ',\n' : '';
-                value = value == null ? "map['" + prop.jsonName + "']" : value;
+        function customTypeMapping(prop, value = null) {
+            prop = prop.isList ? prop.listType : prop;
+            const addDefault = defVal && prop.type != 'dynamic';
+            const endFlag = value == null ? ',\n' : '';
+            value = value == null ? "map['" + prop.jsonName + "']" : value;
 
-                switch (prop.type) {
-                    case 'DateTime':
-                        return `DateTime.fromMillisecondsSinceEpoch(${value})${endFlag}`;
-                    case 'Color':
-                        return `Color(${value})${endFlag}`;
-                    case 'IconData':
-                        return `IconData(${value}, fontFamily: 'MaterialIcons')${endFlag}`
-                    default:
-                        return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault ? ` ?? ${prop.defValue}` : ''}${endFlag}`;
-                }
+            switch (prop.type) {
+                case 'DateTime':
+                    return `DateTime.fromMillisecondsSinceEpoch(${value})${endFlag}`;
+                case 'Color':
+                    return `Color(${value})${endFlag}`;
+                case 'IconData':
+                    return `IconData(${value}, fontFamily: 'MaterialIcons')${endFlag}`
+                default:
+                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault ? ` ?? ${prop.defValue}` : ''}${endFlag}`;
             }
+        }
 
         let method = 'static ' + clazz.name + ' fromMap(Map<String, dynamic> map) {\n';
         method += '  if (map == null) return null;\n\n';
@@ -1184,6 +1196,16 @@ class DataClassGenerator {
     }
 
     /**
+     * @param {string} impl
+     */
+    addInterface(impl) {
+        const interfaces = this.clazz.interfaces;
+        if (!interfaces.includes(impl)) {
+            interfaces.push(impl);
+        }
+    }
+
+    /**
      * @param {string} clazz
      */
     setSuperClass(clazz) {
@@ -1249,6 +1271,7 @@ class DataClassGenerator {
 
                 let classNext = false;
                 let extendsNext = false;
+                let implementsNext = false;
                 let mixinsNext = false;
 
                 // Reset brackets count when a new class was detected.
@@ -1264,6 +1287,19 @@ class DataClassGenerator {
 
                         if (word == 'class') {
                             classNext = true;
+                        } else if (word == 'extends') {
+                            extendsNext = true;
+                        } else if (extendsNext) {
+                            extendsNext = false;
+                            clazz.superclass = word;
+                        } else if (word == 'implements') {
+                            mixinsNext = false;
+                            extendsNext = false;
+                            implementsNext = true;
+                        } else if (word == 'with') {
+                            mixinsNext = true;
+                            extendsNext = false;
+                            implementsNext = false;
                         } else if (classNext) {
                             classNext = false;
 
@@ -1278,15 +1314,15 @@ class DataClassGenerator {
                             }
 
                             clazz.name = word;
-                        } else if (word == 'extends') {
-                            extendsNext = true;
-                        } else if (extendsNext) {
-                            extendsNext = false;
-                            clazz.superclass = word;
-                        } else if (word == 'with') {
-                            mixinsNext = true;
+                        } else if (implementsNext) {
+                            const impl = removeEnd(word, ',').trim();
+                            
+
+                            if (impl.length > 0) {
+                                clazz.interfaces.push(impl);
+                            }
                         } else if (mixinsNext) {
-                            let mixin = removeEnd(word, ',').trim();
+                            const mixin = removeEnd(word, ',').trim();
 
                             if (mixin.length > 0) {
                                 clazz.mixins.push(mixin);
@@ -1741,9 +1777,11 @@ class DataClassCodeActions {
      * @param {DartClass} clazz
      */
     createDataClassFix(clazz) {
-        const fix = new vscode.CodeAction('Generate data class', vscode.CodeActionKind.QuickFix);
-        fix.edit = this.getClazzEdit(clazz);
-        return fix;
+        if (clazz.didChange) {
+            const fix = new vscode.CodeAction('Generate data class', vscode.CodeActionKind.QuickFix);
+            fix.edit = this.getClazzEdit(clazz);
+            return fix;
+        }
     }
 
     /**
@@ -1754,7 +1792,7 @@ class DataClassCodeActions {
         const generator = new DataClassGenerator(this.document.getText(), null, false, part);
         const fix = new vscode.CodeAction(description, vscode.CodeActionKind.QuickFix);
         const clazz = this.findQuickFixClazz(generator);
-        if (clazz != null) {
+        if (clazz != null && clazz.didChange) {
             fix.edit = this.getClazzEdit(clazz, generator.imports);
             return fix;
         }
@@ -1802,6 +1840,9 @@ class DataClassCodeActions {
     createMakeRequiredFix() {
         if (!this.clazz.hasConstructor) return;
 
+        /**
+         * @param {string} match
+         */
         const includes = (match) => this.line.includes(match);
         const line = this.lineNumber;
         const constr = this.clazz.constr;

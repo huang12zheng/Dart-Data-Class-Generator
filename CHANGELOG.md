@@ -1,5 +1,9 @@
 # Change Log
 
+### 0.3.7
+
+Fixed some bugs.
+
 ### 0.3.5
 
 Added support for equatable by setting dart_data_class_generator.useEquatable to true.
@@ -16,7 +20,7 @@ Changed setting `dart_data_class_generator.hashCode` to `dart_data_class_generat
 
 ## 0.3.0
 
-Added quick fixes
+Added quick fixes.
 
 ## 0.2.0
 

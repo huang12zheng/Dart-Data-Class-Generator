@@ -344,8 +344,8 @@ class DartClass {
                     }
                 }
 
-                addSuperTypes(this.interfaces, 'implements');
                 addSuperTypes(this.mixins, 'with');
+                addSuperTypes(this.interfaces, 'implements');
 
                 classDeclaration += ' {\n';
                 replacement = classDeclaration + replacement;
@@ -866,8 +866,19 @@ class DataClassGenerator {
         }
 
         constr += clazz.name + startBracket + '\n';
+
+        // Add 'Key key,' for widgets in constructor.
         if (clazz.isWidget) {
-            if (clazz.constr == null || !clazz.constr.includes('Key key'))
+            let hasKey = false;
+            let clazzConstr = clazz.constr || '';
+            for (let line of clazzConstr.split('\n')) {
+                if (line.trim().startsWith('Key key')) {
+                    hasKey = true;
+                    break;
+                }
+            }
+
+            if (!hasKey)
                 constr += '  Key key,\n';
         }
 
@@ -1278,13 +1289,10 @@ class DataClassGenerator {
                 curlyBrackets = 0;
                 brackets = 0;
 
-                for (let word of line.split(' ')) {
+                const words = this.splitWhileMaintaingGenerics(line);
+                for (let word of words) {
                     word = word.trim();
-                    if (word.length > 0 && word != '{') {
-                        if (word.endsWith('{')) {
-                            word = word.substr(0, word.length - 1);
-                        }
-
+                    if (word.length > 0) {
                         if (word == 'class') {
                             classNext = true;
                         } else if (word == 'extends') {
@@ -1292,14 +1300,14 @@ class DataClassGenerator {
                         } else if (extendsNext) {
                             extendsNext = false;
                             clazz.superclass = word;
-                        } else if (word == 'implements') {
-                            mixinsNext = false;
-                            extendsNext = false;
-                            implementsNext = true;
                         } else if (word == 'with') {
                             mixinsNext = true;
                             extendsNext = false;
                             implementsNext = false;
+                        } else if (word == 'implements') {
+                            mixinsNext = false;
+                            extendsNext = false;
+                            implementsNext = true;
                         } else if (classNext) {
                             classNext = false;
 
@@ -1314,18 +1322,18 @@ class DataClassGenerator {
                             }
 
                             clazz.name = word;
-                        } else if (implementsNext) {
-                            const impl = removeEnd(word, ',').trim();
-                            
-
-                            if (impl.length > 0) {
-                                clazz.interfaces.push(impl);
-                            }
                         } else if (mixinsNext) {
                             const mixin = removeEnd(word, ',').trim();
 
                             if (mixin.length > 0) {
                                 clazz.mixins.push(mixin);
+                            }
+                        } else if (implementsNext) {
+                            const impl = removeEnd(word, ',').trim();
+
+
+                            if (impl.length > 0) {
+                                clazz.interfaces.push(impl);
                             }
                         }
                     }
@@ -1430,6 +1438,50 @@ class DataClassGenerator {
         }
 
         return clazzes;
+    }
+
+    /**
+     * This function is for parsing the class name line while maintaining
+     * also more complex generic types like class A<A, List<C>>.
+     * 
+     * @param {string} line
+     */
+    splitWhileMaintaingGenerics(line) {
+        let words = [];
+        let index = 0;
+        let generics = 0;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const isCurly = char == '{';
+            const isSpace = char == ' ';
+
+            if (char == '<') generics++;
+            if (char == '>') generics--;
+
+            if (generics == 0 && (isSpace || isCurly)) {
+                const word = line.substring(index, i).trim();
+
+                // Do not add whitespace.
+                if (word.length == 0) continue;
+                const isOnlyGeneric = word.startsWith('<');
+
+                // Append the generic type to the word when there is spacing
+                // between them. E.g.: class Hello <A, B>
+                if (isOnlyGeneric) {
+                    words[words.length - 1] = words[words.length - 1] + word;
+                } else {
+                    words.push(word);
+                }
+
+                if (isCurly) {
+                    break;
+                }
+
+                index = i;
+            }
+        }
+
+        return words;
     }
 }
 

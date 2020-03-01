@@ -73,28 +73,6 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.hashCode.use_jenkins`: If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui.
 * `dart_data_class_generator.useEquatable`: If true, uses Equatable for value equality and hashCode.
 
-## Release Notes
+## Contribution
 
-### 0.3.5
-
-Added support for equatable by setting `dart_data_class_generator.useEquatable` to true.
-
-Changed setting `dart_data_class_generator.constructor` to `dart_data_class_generator.constructor.enabled`.  
-Changed setting `dart_data_class_generator.copyWith` to `dart_data_class_generator.copyWith.enabled`.  
-Changed setting `dart_data_class_generator.toMap` to `dart_data_class_generator.toMap.enabled`.  
-Changed setting `dart_data_class_generator.fromMap` to `dart_data_class_generator.fromMap.enabled`.  
-Changed setting `dart_data_class_generator.toJson` to `dart_data_class_generator.toJson.enabled`.  
-Changed setting `dart_data_class_generator.fromJson` to `dart_data_class_generator.fromJson.enabled`.  
-Changed setting `dart_data_class_generator.toString` to `dart_data_class_generator.toString.enabled`.  
-Changed setting `dart_data_class_generator.equality` to `dart_data_class_generator.equality.enabled`.  
-Changed setting `dart_data_class_generator.hashCode` to `dart_data_class_generator.hashCode.enabled`.  
-
-### 0.3.0
-Added quick fixes
-
-### 0.2.0
-Added support for @required annotation.  
-Changed the default hashCode implementation to bitwise operator.
-
-### 0.1.0
-Initial release (Beta).
+If you like this extension, consider giving it a star on [GitHub](https://github.com/BendixMa/sliding-sheet) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).

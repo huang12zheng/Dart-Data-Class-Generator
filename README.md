@@ -75,4 +75,4 @@ You can customize the generator to only generate the functions you want in your 
 
 ## Contribution
 
-If you like this extension, consider giving it a star on [GitHub](https://github.com/BendixMa/sliding-sheet) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).
+If you like this extension, consider giving it a star on [GitHub](https://github.com/BendixMa/Dart-Data-Class-Generator) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).

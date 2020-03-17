@@ -51,6 +51,10 @@ to find the changes and replace the class with its updated version. **Note that 
 **This feature is still in beta!**  
 **Many API's return numbers like 0 or 1 as an integer and not as a double even when they otherwise are. Thus the generator may confuse a value that is usually a double as an int.**  
 
+## Contribution
+
+If you like this extension, consider giving it a star on [GitHub](https://github.com/BendixMa/Dart-Data-Class-Generator) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).
+
 ## Settings
 
 You can customize the generator to only generate the functions you want in your settings file.
@@ -72,7 +76,3 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.hashCode.enabled`: If true, generates a hashCode function for a data class.
 * `dart_data_class_generator.hashCode.use_jenkins`: If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui.
 * `dart_data_class_generator.useEquatable`: If true, uses Equatable for value equality and hashCode.
-
-## Contribution
-
-If you like this extension, consider giving it a star on [GitHub](https://github.com/BendixMa/Dart-Data-Class-Generator) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).

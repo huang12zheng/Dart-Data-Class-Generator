@@ -31,8 +31,8 @@ You can generate data classes either by the quick fix dialog or by running a com
 It is also possible to run the generator on an existing data class (e.g. when some parameters changed). The generator will then try 
 to find the changes and replace the class with its updated version. **Note that custom changes may be overriden**.
 
-**Note:**  
-**Class properties must be declared before the constructor in order for the generator to detect them.**  
+> **Note:**  
+> **Class properties must be declared before the constructor in order for the generator to detect them.**  
 
 ## Create data classes based on JSON (beta)
 
@@ -47,9 +47,9 @@ to find the changes and replace the class with its updated version. **Note that 
 - Type in a class name in the input dialog. This will be the name of the **top level class**, all other class names will be infered.
 - When there are nested objects in the JSON, a dialog will be appear if you want to seperate the classes into multiple files or if all classes should be in the same file.
 
-**Note:**  
-**This feature is still in beta!**  
-**Many API's return numbers like 0 or 1 as an integer and not as a double even when they otherwise are. Thus the generator may confuse a value that is usually a double as an int.**  
+> **Note:**  
+> **This feature is still in beta!**  
+> **Many API's return numbers like 0 or 1 as an integer and not as a double even when they otherwise are. Thus the generator may confuse a value that is usually a double as an int.**  
 
 ## Contribution
 

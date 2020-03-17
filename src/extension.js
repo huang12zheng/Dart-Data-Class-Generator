@@ -1085,29 +1085,38 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertToString(clazz) {
-        const short = clazz.fewProps;
-        const props = clazz.properties;
-        let method = '@override\n';
-        method += `String toString() ${!short ? '{\n' : '=>'}`;
-        method += `${!short ? '  return' : ''} '` + `${clazz.name}(`;
-        for (let p of props) {
-            const name = p.name;
-            const isFirst = name == props[0].name;
-            const isLast = name == props[props.length - 1].name;
+        if (readSetting('useEquatable')) {
+            this.addEquatableDetails(clazz);
 
-            if (!isFirst)
-                method += ' ';
+            let stringify = '@override\n';
+            stringify += 'bool get stringify => true;'
 
-            method += name + ': $' + name + ',';
+            this.appendOrReplace('stringify', stringify, 'bool get stringify', clazz);
+        } else {
+            const short = clazz.fewProps;
+            const props = clazz.properties;
+            let method = '@override\n';
+            method += `String toString() ${!short ? '{\n' : '=>'}`;
+            method += `${!short ? '  return' : ''} '` + `${clazz.name}(`;
+            for (let p of props) {
+                const name = p.name;
+                const isFirst = name == props[0].name;
+                const isLast = name == props[props.length - 1].name;
 
-            if (isLast) {
-                method = removeEnd(method, ',');
-                method += ")';" + (short ? '' : '\n');
+                if (!isFirst)
+                    method += ' ';
+
+                method += name + ': $' + name + ',';
+
+                if (isLast) {
+                    method = removeEnd(method, ',');
+                    method += ")';" + (short ? '' : '\n');
+                }
             }
-        }
-        method += !short ? '}' : '';
+            method += !short ? '}' : '';
 
-        this.appendOrReplace('toString', method, 'String toString()', clazz);
+            this.appendOrReplace('toString', method, 'String toString()', clazz);
+        }
     }
 
 	/**
@@ -1170,19 +1179,28 @@ class DataClassGenerator {
     }
 
     /**
-	 * @param {DartClass} clazz
-	 */
-    insertEquatable(clazz) {
-        // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
+     * @param {DartClass} clazz
+     */
+    addEquatableDetails(clazz) {
         if (clazz.superclass != 'Equatable' && !clazz.mixins.join().includes('EquatableMixin')) {
-            this.requiresImport('package:equatable/equatable.dart');
-
+            // Do not generate the mixin for class with 'Base' in their
+            // names as Base classes should inherit from Equatable.
+            // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
             if (clazz.hasSuperclass && !clazz.superclass.includes('Base')) {
+                this.requiresImport('package:equatable/equatable.dart');
                 this.addMixin('EquatableMixin');
-            } else {
+            } else if (!clazz.hasSuperclass) {
+                this.requiresImport('package:equatable/equatable.dart');
                 this.setSuperClass('Equatable');
             }
         }
+    }
+
+    /**
+	 * @param {DartClass} clazz
+	 */
+    insertEquatable(clazz) {
+        this.addEquatableDetails(clazz);
 
         const props = clazz.properties;
         const short = props.length <= 4;
@@ -1392,11 +1410,18 @@ class DataClassGenerator {
 
                 if (clazz.constrStartsAtLine == null && curlyBrackets == 1) {
                     // Check if a line is valid to only include real properties.
-                    const lineValid = !line.trimLeft().startsWith(clazz.name) &&
+                    const lineValid =
+                        // Line shouldn't start with the class name as this would
+                        // be the constructor or an error.
+                        !line.trimLeft().startsWith(clazz.name) &&
+                        // These symbols would indicate that this is not a field.
                         !includesOne(line, ['{', '}', '=>', '@'], false) &&
+                        // Filter out some keywords.
                         !includesOne(line, ['static', ' set ', ' get ', 'return', 'factory']) &&
                         // Do not include final values that are assigned a value.
-                        !includesAll(line, ['final', '=']);
+                        !includesAll(line, ['final', '=']) &&
+                        // Make sure not to catch abstract functions.
+                        !line.replace(/\s/g, '').endsWith(');');
 
                     if (lineValid) {
                         let type = null;
@@ -1815,8 +1840,10 @@ class DataClassCodeActions {
 
             if (readSetting('useEquatable'))
                 codeActions.push(this.createUseEquatableFix());
-            else if (readSettings(['equality.enabled', 'hashCode.enabled']))
-                codeActions.push(this.createEqualityFix());
+            else {
+                if (readSettings(['equality.enabled', 'hashCode.enabled']))
+                    codeActions.push(this.createEqualityFix());
+            }
         }
 
         return codeActions;
@@ -1895,7 +1922,8 @@ class DataClassCodeActions {
     }
 
     createUseEquatableFix() {
-        return this.constructQuickFix('useEquatable', 'Generate equatable');
+        const useEquatableSuper = this.clazz.superclass === 'Equatable';
+        return this.constructQuickFix('useEquatable', `Generate ${useEquatableSuper ? 'Equatable' : 'EquatableMixin'}`);
     }
 
     createMakeRequiredFix() {

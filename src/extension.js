@@ -836,16 +836,17 @@ class DataClassGenerator {
 	 */
     insertConstructor(clazz) {
         const defVal = readSetting('constructor.default_values');
-        const required = readSetting('constructor.required');
+        let required = readSetting('constructor.required');
         let constr = '';
         let startBracket = '({';
         let endBracket = '})';
 
         if (required) {
-            this.requiresImport('package:flutter/foundation.dart', [
+            this.requiresImport('package:meta/meta.dart', [
                 'package:flutter/material.dart',
                 'package:flutter/cupertino.dart',
-                'package:flutter/widgets.dart'
+                'package:flutter/widgets.dart',
+                'package:flutter/foundation.dart'
             ]);
         }
 
@@ -864,6 +865,9 @@ class DataClassGenerator {
             else if (fConstr.includes('})')) endBracket = '})';
             else endBracket = ')';
         }
+
+        // Only add @required when using named constructors.
+        required = required && startBracket == '({' && endBracket == '})';
 
         constr += clazz.name + startBracket + '\n';
 
@@ -1170,9 +1174,14 @@ class DataClassGenerator {
 	 */
     insertEquatable(clazz) {
         // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
-        if (!clazz.hasSuperclass || !clazz.superclass.includes('Base')) {
+        if (clazz.superclass != 'Equatable' && !clazz.mixins.join().includes('EquatableMixin')) {
             this.requiresImport('package:equatable/equatable.dart');
-            this.addMixin('EquatableMixin');
+
+            if (clazz.hasSuperclass && !clazz.superclass.includes('Base')) {
+                this.addMixin('EquatableMixin');
+            } else {
+                this.setSuperClass('Equatable');
+            }
         }
 
         const props = clazz.properties;
@@ -1354,6 +1363,33 @@ class DataClassGenerator {
                 brackets += count(line, '(');
                 brackets -= count(line, ')');
 
+                // Detect beginning of constructor by looking for the class name and a bracket, while also
+                // making sure not to falsely detect a function constructor invocation with the actual 
+                // constructor with boilerplaty checking all possible constructor options.
+                const includesConstr = line.replace('const', '').trimLeft().startsWith(clazz.name + '(');
+                if (includesConstr && !classLine) {
+                    clazz.constrStartsAtLine = linePos;
+                }
+
+                if (clazz.constrStartsAtLine != null && clazz.constrEndsAtLine == null) {
+                    clazz.constr = clazz.constr == null ? line + '\n' : clazz.constr + line + '\n';
+
+                    // Detect end of constructor.
+                    if (brackets == 0) {
+                        clazz.constrEndsAtLine = linePos;
+                        clazz.constr = removeEnd(clazz.constr, '\n');
+                    }
+                }
+
+                clazz.classContent += line;
+                // Detect end of class.
+                if (curlyBrackets != 0) {
+                    clazz.classContent += '\n';
+                } else {
+                    clazz.endsAtLine = linePos;
+                    clazz = new DartClass();
+                }
+
                 if (clazz.constrStartsAtLine == null && curlyBrackets == 1) {
                     // Check if a line is valid to only include real properties.
                     const lineValid = !line.trimLeft().startsWith(clazz.name) &&
@@ -1406,33 +1442,6 @@ class DataClassGenerator {
                             );
                         }
                     }
-                }
-
-                // Detect beginning of constructor by looking for the class name and a bracket, while also
-                // making sure not to falsely detect a function constructor invocation with the actual 
-                // constructor with boilerplaty checking all possible constructor options.
-                const includesConstr = line.replace('const', '').trimLeft().startsWith(clazz.name + '(');
-                if (includesConstr && !classLine) {
-                    clazz.constrStartsAtLine = linePos;
-                }
-
-                if (clazz.constrStartsAtLine != null && clazz.constrEndsAtLine == null) {
-                    clazz.constr = clazz.constr == null ? line + '\n' : clazz.constr + line + '\n';
-
-                    // Detect end of constructor.
-                    if (brackets == 0) {
-                        clazz.constrEndsAtLine = linePos;
-                        clazz.constr = removeEnd(clazz.constr, '\n');
-                    }
-                }
-
-                clazz.classContent += line;
-                // Detect end of class.
-                if (curlyBrackets != 0) {
-                    clazz.classContent += '\n';
-                } else {
-                    clazz.endsAtLine = linePos;
-                    clazz = new DartClass();
                 }
             }
         }
@@ -1915,11 +1924,11 @@ class DataClassCodeActions {
 
             if (line > namedParametersStartAtLine && line < this.clazz.constrEndsAtLine) {
                 const imports = new Imports(this.document.getText());
-                imports.requiresImport('package:flutter/foundation.dart', [
+                imports.requiresImport('package:meta/meta.dart', [
                     'package:flutter/material.dart',
                     'package:flutter/cupertino.dart',
                     'package:flutter/widgets.dart',
-                    'package:meta/meta.dart',
+                    'package:flutter/foundation.dart'
                 ]);
 
                 const inset = getLineInset(this.line);

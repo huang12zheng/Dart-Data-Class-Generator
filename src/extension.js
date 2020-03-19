@@ -1843,14 +1843,12 @@ class DataClassCodeActions {
         // * Class independent code actions.
         const codeActions = [
             this.createImportsFix(),
+            this.createRequiredFix(),
         ];
 
         if (this.clazz == null || !this.clazz.isValid) {
             return codeActions;
         }
-
-        // * Class code actions.
-        codeActions.push(this.createRequiredFix());
 
         const line = this.lineNumber;
         const clazz = this.clazz;
@@ -1858,6 +1856,7 @@ class DataClassCodeActions {
         const isInConstrRange = line >= clazz.constrStartsAtLine && line <= clazz.constrEndsAtLine;
         if (!(isInProperties || isInConstrRange)) return codeActions;
 
+        // * Class code actions.
         if (!this.clazz.isWidget)
             codeActions.push(this.createDataClassFix(this.clazz));
 
@@ -1969,7 +1968,8 @@ class DataClassCodeActions {
     createRequiredFix() {
         const includes = (match) => this.line.includes(match);
 
-        const content = this.clazz.classContent;
+        const isClass = this.clazz != null;
+        const content = isClass ? this.clazz.classContent : this.document.getText();
         const lines = content.split('\n');
 
         const line = this.lineNumber;
@@ -1977,7 +1977,8 @@ class DataClassCodeActions {
         let singleLine = true;
 
         // Find the curly braces that are included in a bracket like (this.field, **{this.field2}**)
-        const curlies = lines.slice(1, lines.length - 1).join('\n').match(/(?<=\([\w, \s, \,, \., <, >]*)(\{.*?\})(?=[\w, \s]*\))/gs);
+        const src = isClass ? lines.slice(1, lines.length - 1).join('\n') : content;
+        const curlies = src.match(/(?<=\([\w, \s, \,, \., <, >]*)(\{.*?\})(?=[\w, \s]*\))/gs);
         if (curlies == null) return;
 
         let curly = curlies.find((curly) => {

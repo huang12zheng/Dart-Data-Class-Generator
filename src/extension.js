@@ -1118,7 +1118,11 @@ class DataClassGenerator {
 	 */
     insertToString(clazz) {
         if (readSetting('useEquatable')) {
-            this.addEquatableDetails(clazz);
+            if (clazz.superclass != 'Equatable' && !clazz.mixins.includes('EquatableMixin')) {
+                this.insertEquatable(clazz);
+            } else {
+                this.addEquatableDetails(clazz);
+            }
 
             let stringify = '@override\n';
             stringify += 'bool get stringify => true;'

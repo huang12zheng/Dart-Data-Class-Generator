@@ -29,7 +29,9 @@ You can generate data classes either by the quick fix dialog or by running a com
 - When there are multiple classes in the current file, choose the ones you'd like to create data classes of in the dialog.
 
 It is also possible to run the generator on an existing data class (e.g. when some parameters changed). The generator will then try 
-to find the changes and replace the class with its updated version. **Note that custom changes may be overriden**.
+to find the changes and replace the class with its updated version. **Note that custom changes to generated functions may be overriden**.
+
+You can also customize the generator for example to use [Equatable](https://pub.dev/packages/equatable) for value equality. See the [Settings](#-settings) section for more options.
 
 > **Note:**  
 > **Class properties must be declared before the constructor in order for the generator to detect them.**  
@@ -60,6 +62,7 @@ If you like this extension, consider giving it a star on [GitHub](https://github
 You can customize the generator to only generate the functions you want in your settings file.
 
 * `dart_data_class_generator.quick_fixes`: If true, enables quick fixes to quickly generate data classes or specific methods only.
+* `dart_data_class_generator.useEquatable`: If true, uses Equatable for value equality and hashCode.
 * `dart_data_class_generator.fromMap.default_values`: If true, checks if a field is null when deserializing and provides a non-null default value.
 * `dart_data_class_generator.constructor.default_values`: If true, generates default values for the constructor.
 * `dart_data_class_generator.constructor.required`: If true, generates @required annotation for every constructor parameter. Note: The generator wont generate default values for the constructor if enabled!
@@ -75,4 +78,3 @@ You can customize the generator to only generate the functions you want in your 
 * `dart_data_class_generator.equality.enabled`: If true, generates an override of the == (equals) operator for a data class.
 * `dart_data_class_generator.hashCode.enabled`: If true, generates a hashCode function for a data class.
 * `dart_data_class_generator.hashCode.use_jenkins`: If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui.
-* `dart_data_class_generator.useEquatable`: If true, uses Equatable for value equality and hashCode.

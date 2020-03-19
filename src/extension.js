@@ -165,7 +165,7 @@ class DartClass {
         /** @type {string} */
         this.name = null;
         /** @type {string} */
-        this.genericType = '';
+        this.fullGenericType = '';
         /** @type {string} */
         this.superclass = null;
         /** @type {string[]} */
@@ -195,6 +195,21 @@ class DartClass {
 
     get type() {
         return this.name + this.genericType;
+    }
+
+    get genericType() {
+        const parts = this.fullGenericType.split(',');
+        return parts.map((type) => {
+            let part = type.trim();
+            if (part.includes('extends')) {
+                part = part.substring(0, part.indexOf('extends')).trim();
+                if (type === parts[parts.length - 1]) {
+                    part += '>';
+                }
+            }
+
+            return part;
+        }).join(', ');
     }
 
     get propsEndAtLine() {
@@ -319,7 +334,7 @@ class DartClass {
 
             if (i == 0) {
                 const classType = this.isAbstract ? 'abstract class' : 'class';
-                let classDeclaration = classType + ' ' + this.name + this.genericType;
+                let classDeclaration = classType + ' ' + this.name + this.fullGenericType;
                 if (this.superclass != null) {
                     classDeclaration += ' extends ' + this.superclass;
                 }
@@ -715,6 +730,24 @@ class DataClassGenerator {
      * @param {DartClass} clazz
      */
     findPart(name, finder, clazz) {
+        const normalize = (src) => {
+            let result = '';
+            let generics = 0;
+            let prevChar = '';
+            for (const char of src) {
+                if (char == '<') generics++;
+                if (char != ' ' && generics == 0) {
+                    result += char;
+                }
+
+                if (prevChar != '=' && char == '>') generics--;
+                prevChar = char;
+            }
+
+            return result;
+        }
+
+        const finderString = normalize(finder);
         const lines = clazz.classContent.split('\n');
         const part = new ClassPart(name);
         let curlies = 0;
@@ -727,7 +760,7 @@ class DataClassGenerator {
             curlies += count(line, '{');
             curlies -= count(line, '}');
 
-            if (part.startsAt == null && line.trimLeft().startsWith(finder.trimLeft())) {
+            if (part.startsAt == null && normalize(line).startsWith(finderString)) {
                 if (line.includes('=>')) singleLine = true;
                 if (curlies == 2 || singleLine) {
                     part.startsAt = lineNum;
@@ -960,7 +993,7 @@ class DataClassGenerator {
         method += '  );\n'
         method += '}';
 
-        this.appendOrReplace('copyWith', method, `${clazz.type} copyWith(`, clazz);
+        this.appendOrReplace('copyWith', method, `${clazz.name} copyWith(`, clazz);
     }
 
 	/**
@@ -1038,9 +1071,9 @@ class DataClassGenerator {
             }
         }
 
-        let method = 'static ' + clazz.name + ' fromMap(Map<String, dynamic> map) {\n';
+        let method = 'static ' + clazz.type + ` fromMap${clazz.fullGenericType}(Map<String, dynamic> map) {\n`;
         method += '  if (map == null) return null;\n\n';
-        method += '  return ' + clazz.name + '(\n';
+        method += '  return ' + clazz.type + '(\n';
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
             if (!p.isList) {
@@ -1077,7 +1110,7 @@ class DataClassGenerator {
     insertFromJson(clazz) {
         this.requiresImport('dart:convert');
 
-        const method = `static ${clazz.name} fromJson(String source) => fromMap(json.decode(source));`;
+        const method = `static ${clazz.type} fromJson${clazz.fullGenericType}(String source) => fromMap${clazz.genericType}(json.decode(source));`;
         this.appendOrReplace('fromJson', method, `static ${clazz.name} fromJson(String source)`, clazz);
     }
 
@@ -1340,7 +1373,7 @@ class DataClassGenerator {
 
                             // Remove generics from class name.
                             if (word.includes('<')) {
-                                clazz.genericType = word.substring(
+                                clazz.fullGenericType = word.substring(
                                     word.indexOf('<'),
                                     word.lastIndexOf('>') + 1,
                                 );
@@ -1778,11 +1811,19 @@ class DataClassCodeActions {
         this.generator = null;
         this.document = getDoc();
         this.line = '';
-        this.lineNumber = 0;
+        this.range;
     }
 
     get uri() {
         return this.document.uri;
+    }
+
+    get lineNumber() {
+        return this.range.start.line + 1;
+    }
+
+    get charPos() {
+        return this.range.start.character;
     }
 
     /**
@@ -1794,8 +1835,8 @@ class DataClassCodeActions {
             return;
         }
 
+        this.range = range;
         this.document = document;
-        this.lineNumber = range.start.line + 1;
         this.line = document.lineAt(range.start).text;
         this.generator = new DataClassGenerator(document.getText());
         this.clazz = this.getClass();
@@ -1810,7 +1851,7 @@ class DataClassCodeActions {
         }
 
         // * Class code actions.
-        codeActions.push(this.createMakeRequiredFix());
+        codeActions.push(this.createRequiredFix());
 
         const line = this.lineNumber;
         const clazz = this.clazz;
@@ -1926,7 +1967,7 @@ class DataClassCodeActions {
         return this.constructQuickFix('useEquatable', `Generate ${useEquatableSuper ? 'Equatable' : 'EquatableMixin'}`);
     }
 
-    createMakeRequiredFix() {
+    createRequiredFix() {
         if (!this.clazz.hasConstructor) return;
 
         /**
@@ -1934,7 +1975,9 @@ class DataClassCodeActions {
          */
         const includes = (match) => this.line.includes(match);
         const line = this.lineNumber;
+        const content = this.clazz.classContent;
         const constr = this.clazz.constr;
+        const lines = content.split('\n');
 
         if (constr.includes('})') && !includes('@required') && !includes('=')) {
             // Dart also supports non named and named parameters in the same constructor.

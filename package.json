@@ -3,7 +3,7 @@
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
 	"publisher": "BendixMa",
-	"version": "0.3.11",
+	"version": "0.3.12",
 	"engines": {
 		"vscode": "^1.37.0"
 	},

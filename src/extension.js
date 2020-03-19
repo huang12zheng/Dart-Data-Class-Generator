@@ -387,9 +387,9 @@ class DartClass {
 
 class Imports {
     /**
-	 * @param {string} file
+	 * @param {string} text
 	 */
-    constructor(file) {
+    constructor(text) {
         /** @type {string[]} */
         this.values = [];
         /** @type {number} */
@@ -398,7 +398,7 @@ class Imports {
         this.endAtLine = null;
         /** @type {string} */
         this.rawImports = null;
-        this.file = file;
+        this.text = text;
 
         this.readImports();
     }
@@ -432,7 +432,7 @@ class Imports {
 
     readImports() {
         this.rawImports = '';
-        const lines = this.file.split('\n');
+        const lines = this.text.split('\n');
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             const isLast = i == lines.length - 1;
@@ -459,7 +459,6 @@ class Imports {
                 break;
             }
         }
-
     }
 
     get formatted() {
@@ -541,7 +540,7 @@ class Imports {
     hastAtLeastOneImport(imps) {
         for (let imp of imps) {
             const impt = `import '${imp}';`;
-            if (this.file.includes(impt) || this.includes(impt))
+            if (this.text.includes(impt) || this.includes(impt))
                 return true;
         }
         return false;
@@ -1857,16 +1856,16 @@ class DataClassCodeActions {
         const clazz = this.clazz;
         const isInProperties = line >= clazz.startsAtLine && line <= clazz.propsEndAtLine
         const isInConstrRange = line >= clazz.constrStartsAtLine && line <= clazz.constrEndsAtLine;
-        const validLine = isInProperties || isInConstrRange;
-        if (!validLine) return codeActions;
+        if (!(isInProperties || isInConstrRange)) return codeActions;
+
+        if (!this.clazz.isWidget)
+            codeActions.push(this.createDataClassFix(this.clazz));
 
         if (readSetting('constructor.enabled'))
             codeActions.push(this.createConstructorFix());
 
         // Only add constructor fix for widget classes.
         if (!this.clazz.isWidget) {
-            codeActions.splice(0, 0, this.createDataClassFix(this.clazz));
-
             // Copy with and JSON serialization should be handled by
             // subclasses.
             if (!this.clazz.isAbstract) {
@@ -1968,53 +1967,80 @@ class DataClassCodeActions {
     }
 
     createRequiredFix() {
-        if (!this.clazz.hasConstructor) return;
-
-        /**
-         * @param {string} match
-         */
         const includes = (match) => this.line.includes(match);
-        const line = this.lineNumber;
+
         const content = this.clazz.classContent;
-        const constr = this.clazz.constr;
         const lines = content.split('\n');
 
-        if (constr.includes('})') && !includes('@required') && !includes('=')) {
-            // Dart also supports non named and named parameters in the same constructor.
-            // Therefore we have to account for this and find the line number when the named
-            // parameters begin.
-            let namedParametersStartAtLine = this.clazz.constrStartsAtLine;
-            const lines = constr.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (line.includes('{')) {
-                    namedParametersStartAtLine = this.clazz.constrStartsAtLine + i;
-                    break;
-                }
+        const line = this.lineNumber;
+        let column = this.charPos;
+        let singleLine = true;
+
+        // Find the curly braces that are included in a bracket like (this.field, **{this.field2}**)
+        const curlies = lines.slice(1, lines.length - 1).join('\n').match(/(?<=\([\w, \s, \,, \., <, >]*)(\{.*?\})(?=[\w, \s]*\))/gs);
+        if (curlies == null) return;
+
+        let curly = curlies.find((curly) => {
+            if (includes(curly)) return true;
+            if (curly.includes(this.line)) {
+                singleLine = false;
+                return true;
             }
+        });
+        if (curly == null) return;
 
-            if (line > namedParametersStartAtLine && line < this.clazz.constrEndsAtLine) {
-                const imports = new Imports(this.document.getText());
-                imports.requiresImport('package:meta/meta.dart', [
-                    'package:flutter/material.dart',
-                    'package:flutter/cupertino.dart',
-                    'package:flutter/widgets.dart',
-                    'package:flutter/foundation.dart'
-                ]);
+        if (singleLine) {
+            curly = removeStart(curly, '{');
+            curly = removeEnd(curly, '}');
+        } else {
+            curly = this.line;
+        }
 
-                const inset = getLineInset(this.line);
-                return this.createFix('Annotate with @required', (edit) => {
-                    edit.insert(
-                        this.uri,
-                        new vscode.Position(line - 1, inset),
-                        '@required ',
-                    );
+        if (column < 0) return;
 
-                    if (imports.didChange) {
+        let parameter;
+        let parameterStartIndex = -1;
+        if (singleLine) {
+            const parameters = curly.split(',');
+            parameter = parameters.find((parameter) => {
+                parameter = parameter.trim();
+                if (parameter.length == 0) return false;
+
+                parameterStartIndex = this.line.indexOf(curly.trim());
+                return parameterStartIndex <= column && parameterStartIndex + parameter.length >= column;
+            });
+        } else {
+            parameter = curly.trim();
+            parameterStartIndex = curly.indexOf(parameter);
+        }
+
+        if (parameter == null || parameterStartIndex < 0) return;
+
+        if (!includesOne(parameter, ['@required', '='])) {
+            const imports = new Imports(this.document.getText());
+            const hasImports = imports.hasImports;
+            imports.requiresImport('package:meta/meta.dart', [
+                'package:flutter/material.dart',
+                'package:flutter/cupertino.dart',
+                'package:flutter/widgets.dart',
+                'package:flutter/foundation.dart'
+            ]);
+
+            return this.createFix('Annotate with @required', (edit) => {
+                edit.insert(
+                    this.uri,
+                    new vscode.Position(line - 1, parameterStartIndex),
+                    '@required ',
+                );
+
+                if (imports.didChange) {
+                    if (hasImports) {
                         edit.replace(this.uri, imports.range, imports.formatted);
+                    } else {
+                        edit.insert(this.uri, new vscode.Position(imports.startAtLine, 0), imports.formatted + '\n');
                     }
-                });
-            }
+                }
+            });
         }
     }
 
@@ -2352,18 +2378,6 @@ function indent(source) {
         r += '  ' + line + '\n';
     }
     return r.length > 0 ? r : source;
-}
-
-/**
- * @param {string} source
- */
-function getLineInset(source) {
-    let inset = 0;
-    for (let char of source) {
-        if (char == ' ') inset++;
-        else break;
-    }
-    return inset;
 }
 
 /**

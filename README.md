@@ -4,9 +4,11 @@ Create dart data classes easily, fast and without writing boilerplate or running
 
 ## Features
 
-The generator can generate the constructor, copyWith, toMap, fromMap, toJson, fromJson, toString, operator == and hashCode methods for a class based on class properties or raw JSON.
+The generator can generate the constructor, copyWith, toMap, fromMap, toJson, fromJson, toString, operator == and hashCode methods for a class based on [class properties](#-create-data-classes-based-on-class-properties) or [raw JSON](#-create-data-classes-based-on-json-(beta)).
 
-## Create data classes based on class properties
+Additionally the generator has a couple of useful quickfixes to speed up your development process. See the [Additional Features Section](#-additional-features) for more.
+
+## Create Data Classes Based on Class Properties
 
 ![](assets/gif_from_class.gif)
 
@@ -36,22 +38,38 @@ You can also customize the generator for example to use [Equatable](https://pub.
 > **Note:**  
 > **Class properties must be declared before the constructor in order for the generator to detect them.**  
 
-## Create data classes based on JSON (beta)
+## Create Data Classes Based on JSON (Beta)
 
 ![](assets/gif_from_json.gif)
 
 ### **Usage**
 
 - Create an **empty dart** file.
-- Paste the **raw JSON** into the otherwise empty file.
+- Paste the **raw JSON without modifying it** into the otherwise empty file.
 - Hit **CTRL + P** to open the command dialog.
 - Search for **Dart Data Class Generator: Generate from JSON** and hit enter.
-- Type in a class name in the input dialog. This will be the name of the **top level class**, all other class names will be infered.
+- Type in a class name in the input dialog. This will be the name of the **top level class** if the JSON contains nested objects, all other class names will be infered from the JSON keys.
 - When there are nested objects in the JSON, a dialog will be appear if you want to seperate the classes into multiple files or if all classes should be in the same file.
 
 > **Note:**  
 > **This feature is still in beta!**  
 > **Many API's return numbers like 0 or 1 as an integer and not as a double even when they otherwise are. Thus the generator may confuse a value that is usually a double as an int.**  
+
+## Additional Features
+
+The extension includes some additional quick fixes that might be useful to you:
+
+### Annotate parameters with @required
+
+Quickly annotate parameters with @required while importing `package:meta/meta.dart` if there's no import for it already.
+
+<img width="512" src="assets/required_demo.gif"/>
+
+### Import refactoring
+
+Sort imports alphabetically and bring them into the correct format easily.
+
+<img width="512" src="assets/import_demo.gif"/>
 
 ## Contribution
 

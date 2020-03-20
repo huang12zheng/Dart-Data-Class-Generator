@@ -1,6 +1,6 @@
 # Change Log
 
-### 0.3.7 - 0.3.12
+### 0.3.7 - 0.3.14
 
 Fixed some bugs.
 

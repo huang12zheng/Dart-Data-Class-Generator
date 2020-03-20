@@ -1970,6 +1970,8 @@ class DataClassCodeActions {
     }
 
     createRequiredFix() {
+        if (this.line.trim().length == 0) return;
+
         const includes = (match) => this.line.includes(match);
 
         const isClass = this.clazz != null;
@@ -1992,7 +1994,7 @@ class DataClassCodeActions {
                 return true;
             }
         });
-        if (curly == null) return;
+        if (curly == null || curly === undefined) return;
 
         if (singleLine) {
             curly = removeStart(curly, '{');
@@ -2011,7 +2013,8 @@ class DataClassCodeActions {
                 parameter = parameter.trim();
                 if (parameter.length == 0) return false;
 
-                parameterStartIndex = this.line.indexOf(curly.trim());
+                parameterStartIndex = this.line.indexOf(curly.trim()) + curly.trim().indexOf(parameter);
+
                 return parameterStartIndex <= column && parameterStartIndex + parameter.length >= column;
             });
         } else {
@@ -2019,7 +2022,7 @@ class DataClassCodeActions {
             parameterStartIndex = curly.indexOf(parameter);
         }
 
-        if (parameter == null || parameterStartIndex < 0) return;
+        if (parameter == null || parameter === undefined || parameterStartIndex < 0) return;
 
         if (!includesOne(parameter, ['@required', '='])) {
             const imports = new Imports(this.document.getText());

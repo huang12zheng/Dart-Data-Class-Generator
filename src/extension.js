@@ -2,6 +2,8 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 
+var project_name = '';
+
 /**
  * @param {vscode.ExtensionContext} context
  */
@@ -28,6 +30,27 @@ function activate(context) {
             vscode.CodeActionKind.QuickFix
         ],
     }));
+
+    findProjectName();
+}
+
+async function findProjectName() {
+    const pubspecs = await vscode.workspace.findFiles('pubspec.yaml');
+
+    if (pubspecs != null && pubspecs.length > 0) {
+        const pubspec = pubspecs[0];
+        const content = fs.readFileSync(pubspec.fsPath, 'utf8');
+        if (content != null && content.includes('name: ')) {
+            for (const line of content.split('\n')) {
+                if (line.startsWith('name: ')) {
+                    project_name = line.replace('name:', '').trim();
+                    console.log(project_name);
+                    break;
+                }
+            }
+
+        }
+    }
 }
 
 async function generateJsonDataClass() {
@@ -464,12 +487,14 @@ class Imports {
     get formatted() {
         if (!this.hasImports) return '';
 
-        const file = getEditor().document.uri;
-        let workspace = null;
-        if (file.scheme === 'file') {
-            const folder = vscode.workspace.getWorkspaceFolder(file);
-            if (folder) {
-                workspace = path.basename(folder.uri.fsPath).replace('-', '_');
+        let workspace = project_name;
+        if (workspace == null || workspace.length == 0) {
+            const file = getEditor().document.uri;
+            if (file.scheme === 'file') {
+                const folder = vscode.workspace.getWorkspaceFolder(file);
+                if (folder) {
+                    workspace = path.basename(folder.uri.fsPath).replace('-', '_');
+                }
             }
         }
 

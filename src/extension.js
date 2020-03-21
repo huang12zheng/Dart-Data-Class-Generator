@@ -1481,7 +1481,7 @@ class DataClassGenerator {
                         // These symbols would indicate that this is not a field.
                         !includesOne(line, ['{', '}', '=>', '@'], false) &&
                         // Filter out some keywords.
-                        !includesOne(line, ['static ', ' set ', ' get ', 'return ', 'factory ']) &&
+                        !includesOne(line, ['static', 'set', 'get', 'return', 'factory']) &&
                         // Do not include final values that are assigned a value.
                         !includesAll(line, ['final ', '=']) &&
                         // Do not inlcude non final fields that were declared after the constructor.

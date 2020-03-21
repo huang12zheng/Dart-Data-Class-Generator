@@ -1,6 +1,11 @@
 # Change Log
 
-### 0.3.7 - 0.3.14
+### 0.3.15
+
+Class fields can now also be declared after the constructor.
+Minor improvements.
+
+### 0.3.6 - 0.3.14
 
 Fixed some bugs.
 

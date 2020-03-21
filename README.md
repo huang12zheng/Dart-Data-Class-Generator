@@ -19,7 +19,7 @@ You can generate data classes either by the quick fix dialog or by running a com
 #### **Quick fix**
 
 - Create a class with properties.
-- Place your cursor on the first line of the class where it is declared.
+- Place your cursor on the first line of the class, the constructor or a field.
 - Hit **CTRL + .** to open the quick fix dialog.
 - Choose one of the available options.
 
@@ -34,9 +34,6 @@ It is also possible to run the generator on an existing data class (e.g. when so
 to find the changes and replace the class with its updated version. **Note that custom changes to generated functions may be overriden**.
 
 You can also customize the generator for example to use [Equatable](https://pub.dev/packages/equatable) for value equality. See the [Settings](#-settings) section for more options.
-
-> **Note:**  
-> **Class properties must be declared before the constructor in order for the generator to detect them.**  
 
 ## Create Data Classes Based on JSON (Beta)
 

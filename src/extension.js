@@ -44,11 +44,9 @@ async function findProjectName() {
             for (const line of content.split('\n')) {
                 if (line.startsWith('name: ')) {
                     project_name = line.replace('name:', '').trim();
-                    console.log(project_name);
                     break;
                 }
             }
-
         }
     }
 }
@@ -921,6 +919,9 @@ class DataClassGenerator {
             if (fConstr.includes('])')) endBracket = '])';
             else if (fConstr.includes('})')) endBracket = '})';
             else endBracket = ')';
+        } else {
+            if (clazz.isWidget)
+                constr += 'const ';
         }
 
         // Only add @required when using named constructors.
@@ -1362,7 +1363,7 @@ class DataClassGenerator {
             // Make sure to look for 'class ' with the space in order to allow
             // fields that contain the word 'class' as in classifire.
             // issue: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/2
-            const classLine = line.includes('class ');
+            const classLine = line.trimLeft().startsWith('class ') || line.trimLeft().startsWith('abstract class ');
 
             if (classLine) {
                 clazz = new DartClass();
@@ -1469,18 +1470,22 @@ class DataClassGenerator {
                     clazz = new DartClass();
                 }
 
-                if (clazz.constrStartsAtLine == null && curlyBrackets == 1) {
+                if (brackets == 0 && curlyBrackets == 1) {
                     // Check if a line is valid to only include real properties.
                     const lineValid =
                         // Line shouldn't start with the class name as this would
                         // be the constructor or an error.
                         !line.trimLeft().startsWith(clazz.name) &&
+                        // Ignore comments.
+                        !line.trimLeft().startsWith('//') &&
                         // These symbols would indicate that this is not a field.
                         !includesOne(line, ['{', '}', '=>', '@'], false) &&
                         // Filter out some keywords.
-                        !includesOne(line, ['static', ' set ', ' get ', 'return', 'factory']) &&
+                        !includesOne(line, ['static ', ' set ', ' get ', 'return ', 'factory ']) &&
                         // Do not include final values that are assigned a value.
-                        !includesAll(line, ['final', '=']) &&
+                        !includesAll(line, ['final ', '=']) &&
+                        // Do not inlcude non final fields that were declared after the constructor.
+                        (clazz.constrStartsAtLine == null || line.includes('final ')) &&
                         // Make sure not to catch abstract functions.
                         !line.replace(/\s/g, '').endsWith(');');
 
@@ -1881,9 +1886,10 @@ class DataClassCodeActions {
 
         const line = this.lineNumber;
         const clazz = this.clazz;
-        const isInProperties = line >= clazz.startsAtLine && line <= clazz.propsEndAtLine
+        const isAtClassDeclaration = line == clazz.startsAtLine;
+        const isInProperties = clazz.properties.find((p) => p.line == line) != undefined;
         const isInConstrRange = line >= clazz.constrStartsAtLine && line <= clazz.constrEndsAtLine;
-        if (!(isInProperties || isInConstrRange)) return codeActions;
+        if (!(isAtClassDeclaration || isInProperties || isInConstrRange)) return codeActions;
 
         // * Class code actions.
         if (!this.clazz.isWidget)

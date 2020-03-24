@@ -2,7 +2,8 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 
-var project_name = '';
+var projectName = '';
+var isFlutter = false;
 
 /**
  * @param {vscode.ExtensionContext} context
@@ -36,14 +37,14 @@ function activate(context) {
 
 async function findProjectName() {
     const pubspecs = await vscode.workspace.findFiles('pubspec.yaml');
-
     if (pubspecs != null && pubspecs.length > 0) {
         const pubspec = pubspecs[0];
         const content = fs.readFileSync(pubspec.fsPath, 'utf8');
         if (content != null && content.includes('name: ')) {
+            isFlutter = content.includes('flutter:') && content.includes('sdk: flutter');
             for (const line of content.split('\n')) {
                 if (line.startsWith('name: ')) {
-                    project_name = line.replace('name:', '').trim();
+                    projectName = line.replace('name:', '').trim();
                     break;
                 }
             }
@@ -485,7 +486,7 @@ class Imports {
     get formatted() {
         if (!this.hasImports) return '';
 
-        let workspace = project_name;
+        let workspace = projectName;
         if (workspace == null || workspace.length == 0) {
             const file = getEditor().document.uri;
             if (file.scheme === 'file') {
@@ -597,15 +598,28 @@ class ClassProperty {
         this.line = line;
         this.isFinal = isFinal;
         this.isConst = isConst;
+        this.isCollectionType = (type) => this.type == type || this.type.startsWith(type + '<');
     }
 
     get isList() {
-        return this.type.startsWith('List<');
+        return this.isCollectionType('List');
+    }
+
+    get isMap() {
+        return this.isCollectionType('Map');
+    }
+
+    get isSet() {
+        return this.isCollectionType('Set');
+    }
+
+    get isCollection() {
+        return this.isList || this.isMap || this.isSet;
     }
 
     get listType() {
         if (this.isList) {
-            const type = this.type.replace('List<', '').replace('>', '');
+            const type = this.type == 'List' ? 'dynamic' : this.type.replace('List<', '').replace('>', '');
             return new ClassProperty(type, this.name, this.line, this.isFinal);
         }
 
@@ -1186,13 +1200,42 @@ class DataClassGenerator {
 	 */
     insertEquality(clazz) {
         const props = clazz.properties;
+        const hasCollection = props.find((p) => p.isCollection) != undefined;
+
+        let collectionEqualityFn;
+        if (hasCollection) {
+            // Flutter already has collection equality functions 
+            // in the foundation package.
+            if (isFlutter) {
+                this.requiresImport('package:flutter/foundation.dart');
+            } else {
+                this.requiresImport('package:collection/collection.dart');
+                
+                collectionEqualityFn = 'collectionEquals';
+                const isListOnly = props.find((p) => p.isCollection && !p.isList) == undefined;
+                if (isListOnly) collectionEqualityFn = 'listEquals';
+                const isMapOnly = props.find((p) => p.isCollection && !p.isMap) == undefined;
+                if (isMapOnly) collectionEqualityFn = 'mapEquals';
+                const isSetOnly = props.find((p) => p.isCollection && !p.isSet) == undefined;
+                if (isSetOnly) collectionEqualityFn = 'setEquals';
+            }
+        }
+
         let method = '@override\n';
         method += 'bool operator ==(Object o) {\n';
-        method += '  if (identical(this, o)) return true;\n\n';
+        method += '  if (identical(this, o)) return true;\n';
+        if (hasCollection && !isFlutter)
+            method += `  final ${collectionEqualityFn} = const DeepCollectionEquality().equals;\n`
+        method += '\n';
         method += '  return o is ' + clazz.type + ' &&\n';
-        for (let p of props) {
-            method += '    o.' + p.name + ' == ' + p.name;
-            if (p.name != props[props.length - 1].name) method += ' &&\n';
+        for (let prop of props) {
+            if (prop.isCollection) {
+                if (isFlutter) collectionEqualityFn = prop.isSet ? 'setEquals' : prop.isMap ? 'mapEquals' : 'listEquals';
+                method += `    ${collectionEqualityFn}(o.${prop.name}, ${prop.name})`;
+            } else {
+                method += `    o.${prop.name} == ${prop.name}`;
+            }
+            if (prop.name != props[props.length - 1].name) method += ' &&\n';
             else method += ';\n';
         }
         method += '}';

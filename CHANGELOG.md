@@ -1,5 +1,9 @@
 # Change Log
 
+### 0.3.17
+
+Added support for value equality on `Lists`, `Maps` and `Sets`.
+
 ### 0.3.16
 
 Class fields can now also be declared after the constructor.

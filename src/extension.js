@@ -618,8 +618,9 @@ class ClassProperty {
     }
 
     get listType() {
-        if (this.isList) {
-            const type = this.type == 'List' ? 'dynamic' : this.type.replace('List<', '').replace('>', '');
+        if (this.isList || this.isSet) {
+            const collection = this.isSet ? 'Set' : 'List';
+            const type = this.type == collection ? 'dynamic' : this.type.replace(collection + '<', '').replace('>', '');
             return new ClassProperty(type, this.name, this.line, this.isFinal);
         }
 
@@ -634,7 +635,7 @@ class ClassProperty {
     get defValue() {
         if (this.isList) {
             return 'const []';
-        } else if (this.isMap) {
+        } else if (this.isMap || this.isSet) {
             return 'const {}';
         } else {
             switch (this.type) {
@@ -977,7 +978,7 @@ class DataClassGenerator {
             }
 
             let parameter = `this.${prop.name}`
-            const addDefault = endBracket != ')' && defVal && !required && ((prop.isPrimitive || prop.isList) && prop.type != 'dynamic');
+            const addDefault = endBracket != ')' && defVal && !required && ((prop.isPrimitive || prop.isCollection) && prop.type != 'dynamic');
 
             constr += '  ';
             if (required) parameter = '@required ' + parameter;
@@ -1046,7 +1047,7 @@ class DataClassGenerator {
          * @param {ClassProperty} prop
          */
         function customTypeMapping(prop, name = null, endFlag = ',\n') {
-            prop = prop.isList ? prop.listType : prop;
+            prop = prop.isCollection ? prop.listType : prop;
             name = name == null ? prop.name : name;
 
             switch (prop.type) {
@@ -1067,7 +1068,8 @@ class DataClassGenerator {
             method += `    '${p.jsonName}': `;
             if (p.isCollection) {
                 if (p.isMap || p.listType.isPrimitive) {
-                    method += `${p.name},\n`;
+                    const mapFlag = p.isSet ? '?.toList()' : '';
+                    method += `${p.name}${mapFlag},\n`;
                 } else {
                     method += `${p.name}?.map((x) => ${customTypeMapping(p, 'x', '')})?.toList(),\n`
                 }
@@ -1093,7 +1095,7 @@ class DataClassGenerator {
          * @param {ClassProperty} prop
          */
         function customTypeMapping(prop, value = null) {
-            prop = prop.isList ? prop.listType : prop;
+            prop = prop.isCollection ? prop.listType : prop;
             const addDefault = defVal && prop.type != 'dynamic';
             const endFlag = value == null ? ',\n' : '';
             value = value == null ? "map['" + prop.jsonName + "']" : value;
@@ -1115,11 +1117,9 @@ class DataClassGenerator {
         method += '  return ' + clazz.type + '(\n';
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
-            if (p.isMap) {
-                method += `${p.type}.from(map['${p.jsonName}'] ?? const {}),\n`;
-            } else if (p.isList) {
-                const defaultValue = defVal ? ' ?? const []' : '';
-                
+            if (p.isCollection) {
+                const defaultValue = defVal ? ` ?? const ${p.isList ? '[]' : '{}'}` : '';
+
                 method += `${p.type}.from(`;
                 if (p.isPrimitive) {
                     method += `map['${p.jsonName}']${defaultValue}),\n`;
@@ -1215,7 +1215,7 @@ class DataClassGenerator {
                 this.requiresImport('package:flutter/foundation.dart');
             } else {
                 this.requiresImport('package:collection/collection.dart');
-                
+
                 collectionEqualityFn = 'collectionEquals';
                 const isListOnly = props.find((p) => p.isCollection && !p.isList) == undefined;
                 if (isListOnly) collectionEqualityFn = 'listEquals';

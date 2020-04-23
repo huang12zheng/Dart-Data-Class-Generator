@@ -628,12 +628,14 @@ class ClassProperty {
 
     get isPrimitive() {
         let t = this.listType.type;
-        return t == 'String' || t == 'num' || t == 'dynamic' || t == 'bool' || this.isDouble || this.isInt;
+        return t == 'String' || t == 'num' || t == 'dynamic' || t == 'bool' || this.isDouble || this.isInt || this.isMap;
     }
 
     get defValue() {
         if (this.isList) {
             return 'const []';
+        } else if (this.isMap) {
+            return 'const {}';
         } else {
             switch (this.type) {
                 case 'String': return "''";
@@ -1046,33 +1048,31 @@ class DataClassGenerator {
         function customTypeMapping(prop, name = null, endFlag = ',\n') {
             prop = prop.isList ? prop.listType : prop;
             name = name == null ? prop.name : name;
+
             switch (prop.type) {
                 case 'DateTime':
-                    return `${name}.millisecondsSinceEpoch${endFlag}`;
+                    return `${name}?.millisecondsSinceEpoch${endFlag}`;
                 case 'Color':
-                    return `${name}.value${endFlag}`;
+                    return `${name}?.value${endFlag}`;
                 case 'IconData':
-                    return `${name}.codePoint${endFlag}`
+                    return `${name}?.codePoint${endFlag}`
                 default:
-                    return `${name}${!prop.isPrimitive ? '.toMap()' : ''}${endFlag}`;
+                    return `${name}${!prop.isPrimitive ? '?.toMap()' : ''}${endFlag}`;
             }
-
         }
 
         let method = `Map<String, dynamic> toMap() {\n`;
         method += '  return {\n';
         for (let p of props) {
             method += `    '${p.jsonName}': `;
-            if (!p.isList) {
-                method += customTypeMapping(p);
-            } else {
-                method += `List<dynamic>.from(${p.name}.map((x) => `;
-                const endFlag = ')),\n';
-                if (p.isPrimitive) {
-                    method += 'x' + endFlag;
+            if (p.isCollection) {
+                if (p.isMap || p.listType.isPrimitive) {
+                    method += `${p.name},\n`;
                 } else {
-                    method += customTypeMapping(p, 'x', endFlag);
+                    method += `${p.name}?.map((x) => ${customTypeMapping(p, 'x', '')})?.toList(),\n`
                 }
+            } else {
+                method += customTypeMapping(p);
             }
             if (p.name == props[props.length - 1].name) method += '  };\n';
         }
@@ -1115,17 +1115,22 @@ class DataClassGenerator {
         method += '  return ' + clazz.type + '(\n';
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
-            if (!p.isList) {
-                method += customTypeMapping(p);
-            } else {
+            if (p.isMap) {
+                method += `${p.type}.from(map['${p.jsonName}'] ?? const {}),\n`;
+            } else if (p.isList) {
+                const defaultValue = defVal ? ' ?? const []' : '';
+                
                 method += `${p.type}.from(`;
                 if (p.isPrimitive) {
-                    method += `map['${p.jsonName}']${defVal ? ' ?? []' : ''}),\n`;
+                    method += `map['${p.jsonName}']${defaultValue}),\n`;
                 } else {
                     method += `map['${p.jsonName}']?.map((x) => ${customTypeMapping(p, 'x')})`;
-                    method += `${defVal ? ' ?? []' : ''}),\n`;
+                    method += `${defaultValue}),\n`;
                 }
+            } else {
+                method += customTypeMapping(p);
             }
+
             if (p.name == props[props.length - 1].name) method += '  );\n';
         }
         method += '}';

@@ -9,11 +9,11 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/BendixMa/Dart-Data-Class-Generator"
+		"url": "https://github.com/bnxm/Dart-Data-Class-Generator"
 	},
 	"bugs": {
-		"url": "https://github.com/BendixMa/Dart-Data-Class-Generator/issues",
-		"email": "help.bendix@gmail.com"
+		"url": "https://github.com/bnxm/Dart-Data-Class-Generator/issues",
+		"email": "dev.bendix.mahnke@gmail.com"
 	},
 	"icon": "assets/icon.png",
 	"keywords": [

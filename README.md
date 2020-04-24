@@ -70,7 +70,7 @@ Sort imports alphabetically and bring them into the correct format easily.
 
 ## Contribution
 
-If you like this extension, consider giving it a star on [GitHub](https://github.com/BendixMa/Dart-Data-Class-Generator) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).
+If you like this extension, consider giving it a star on [GitHub](https://github.com/bnxm/Dart-Data-Class-Generator) and leaving a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator).
 
 ## Settings
 

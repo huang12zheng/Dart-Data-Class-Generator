@@ -1116,7 +1116,7 @@ class DataClassGenerator {
             }
         }
 
-        let method = 'static ' + clazz.type + ` fromMap${clazz.fullGenericType}(Map<String, dynamic> map) {\n`;
+        let method = `factory ${clazz.name}.fromMap(Map<String, dynamic> map) {\n`;
         method += '  if (map == null) return null;\n\n';
         method += '  return ' + clazz.type + '(\n';
         for (let p of props) {
@@ -1144,7 +1144,7 @@ class DataClassGenerator {
         }
         method += '}';
 
-        this.appendOrReplace('fromMap', method, `static ${clazz.name} fromMap(Map<String, dynamic> map)`, clazz);
+        this.appendOrReplace('fromMap', method, `factory ${clazz.name}.fromMap(Map<String, dynamic> map)`, clazz);
     }
 
 	/**
@@ -1163,8 +1163,8 @@ class DataClassGenerator {
     insertFromJson(clazz) {
         this.requiresImport('dart:convert');
 
-        const method = `static ${clazz.type} fromJson${clazz.fullGenericType}(String source) => fromMap${clazz.genericType}(json.decode(source));`;
-        this.appendOrReplace('fromJson', method, `static ${clazz.name} fromJson(String source)`, clazz);
+        const method = `factory ${clazz.name}.fromJson(String source) => ${clazz.name}.fromMap(json.decode(source));`;
+        this.appendOrReplace('fromJson', method, `factory ${clazz.name}.fromJson(String source)`, clazz);
     }
 
 	/**

@@ -598,6 +598,7 @@ class ClassProperty {
         this.line = line;
         this.isFinal = isFinal;
         this.isConst = isConst;
+        this.isEnum = false;
         this.isCollectionType = (type) => this.type == type || this.type.startsWith(type + '<');
     }
 
@@ -1066,7 +1067,10 @@ class DataClassGenerator {
         method += '  return {\n';
         for (let p of props) {
             method += `    '${p.jsonName}': `;
-            if (p.isCollection) {
+
+            if (p.isEnum) {
+                method += `${p.name}?.index,\n`;
+            } else if (p.isCollection) {
                 if (p.isMap || p.listType.isPrimitive) {
                     const mapFlag = p.isSet ? '?.toList()' : '';
                     method += `${p.name}${mapFlag},\n`;
@@ -1117,21 +1121,26 @@ class DataClassGenerator {
         method += '  return ' + clazz.type + '(\n';
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
-            if (p.isCollection) {
+
+            const value = `map['${p.jsonName}']`;
+            if (p.isEnum) {
+                const defaultValue = defVal ? ' ?? 0' : '';
+                method += `${p.type}.values[${value}${defaultValue}],\n`;
+            } else if (p.isCollection) {
                 const defaultValue = defVal ? ` ?? const ${p.isList ? '[]' : '{}'}` : '';
 
                 method += `${p.type}.from(`;
                 if (p.isPrimitive) {
-                    method += `map['${p.jsonName}']${defaultValue}),\n`;
+                    method += `${value}${defaultValue}),\n`;
                 } else {
-                    method += `map['${p.jsonName}']?.map((x) => ${customTypeMapping(p, 'x')})`;
-                    method += `${defaultValue}),\n`;
+                    method += `${value}?.map((x) => ${customTypeMapping(p, 'x')})${defaultValue}),\n`;
                 }
             } else {
                 method += customTypeMapping(p);
             }
 
-            if (p.name == props[props.length - 1].name) method += '  );\n';
+            const isLast = p.name == props[props.length - 1].name;
+            if (isLast) method += '  );\n';
         }
         method += '}';
 
@@ -1576,9 +1585,14 @@ class DataClassGenerator {
                         }
 
                         if (type != null && name != null) {
-                            clazz.properties.push(
-                                new ClassProperty(type, name, linePos, isFinal, isConst)
-                            );
+                            const prop = new ClassProperty(type, name, linePos, isFinal, isConst);
+
+                            if (i > 0) {
+                                const prevLine = lines[i - 1];
+                                prop.isEnum = prevLine.match(/.*\/\/(\s*)enum/) != null;
+                            }
+
+                            clazz.properties.push(prop);
                         }
                     }
                 }

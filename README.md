@@ -32,10 +32,17 @@ You can generate data classes either by the quick fix dialog or by running a com
 - Search for **Dart Data Class Generator: Generate from class properties** and hit enter.
 - When there are multiple classes in the current file, choose the ones you'd like to create data classes of in the dialog.
 
-It is also possible to run the generator on an existing data class (e.g. when some parameters changed). The generator will then try 
-to find the changes and replace the class with its updated version. **Note that custom changes to generated functions may be overriden**.
+It is also possible to run the generator on an existing data class (e.g. when some parameters changed). The generator will then try to find the changes and replace the class with its updated version. **Note that custom changes to generated functions may be overriden**.
 
 You can also customize the generator for example to use [Equatable](https://pub.dev/packages/equatable) for value equality. See the [Settings](#-settings) section for more options.
+
+#### **Enums**
+
+In order for `enums` to be correctly serialized from and to JSON, please annotate them using a comment like so:
+```dart
+// enum
+final Enum myEnum;
+```
 
 ## Create Data Classes Based on JSON (Beta)
 

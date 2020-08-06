@@ -196,7 +196,7 @@ class DartClass {
         this.mixins = [];
         /** @type {string} */
         this.constr = null;
-        /** @type {ClassProperty[]} */
+        /** @type {ClassField[]} */
         this.properties = [];
         /** @type {number} */
         this.startsAtLine = null;
@@ -304,6 +304,10 @@ class DartClass {
 
     get isAbstract() {
         return this.classContent.trimLeft().startsWith('abstract class');
+    }
+
+    get usesEquatable() {
+        return this.superclass == 'Equatable' || this.mixins.includes('EquatableMixin');
     }
 
     get issue() {
@@ -470,7 +474,7 @@ class Imports {
                     this.endAtLine = i + 1;
                     break;
                 }
-            } else if (isLast || (!isBlank(line) && !line.startsWith('library'))) {
+            } else if (isLast || (!isBlank(line) && !line.startsWith('library') && !line.startsWith('//'))) {
                 if (this.startAtLine != null) {
                     if (i > 0 && isBlank(lines[i - 1])) {
                         this.endAtLine = i - 1;
@@ -583,7 +587,7 @@ class Imports {
     }
 }
 
-class ClassProperty {
+class ClassField {
 	/**
 	 * @param {String} type
 	 * @param {String} name
@@ -622,7 +626,7 @@ class ClassProperty {
         if (this.isList || this.isSet) {
             const collection = this.isSet ? 'Set' : 'List';
             const type = this.type == collection ? 'dynamic' : this.type.replace(collection + '<', '').replace('>', '');
-            return new ClassProperty(type, this.name, this.line, this.isFinal);
+            return new ClassField(type, this.name, this.line, this.isFinal);
         }
 
         return this;
@@ -722,12 +726,12 @@ class DataClassGenerator {
     /**
      * @param {string} part
      */
-    isPart(part) {
+    isPartSelected(part) {
         return this.part == null || this.part == part;
     }
 
     generateDataClazzes() {
-        const insertConstructor = readSetting('constructor.enabled') && this.isPart('constructor');
+        const insertConstructor = readSetting('constructor.enabled') && this.isPartSelected('constructor');
 
         for (let clazz of this.clazzes) {
             this.clazz = clazz;
@@ -737,27 +741,27 @@ class DataClassGenerator {
 
             if (!clazz.isWidget) {
                 if (!clazz.isAbstract) {
-                    if (readSetting('copyWith.enabled') && this.isPart('copyWith'))
+                    if (readSetting('copyWith.enabled') && this.isPartSelected('copyWith'))
                         this.insertCopyWith(clazz);
-                    if (readSetting('toMap.enabled') && this.isPart('serialization'))
+                    if (readSetting('toMap.enabled') && this.isPartSelected('serialization'))
                         this.insertToMap(clazz);
-                    if (readSetting('fromMap.enabled') && this.isPart('serialization'))
+                    if (readSetting('fromMap.enabled') && this.isPartSelected('serialization'))
                         this.insertFromMap(clazz);
-                    if (readSetting('toJson.enabled') && this.isPart('serialization'))
+                    if (readSetting('toJson.enabled') && this.isPartSelected('serialization'))
                         this.insertToJson(clazz);
-                    if (readSetting('fromJson.enabled') && this.isPart('serialization'))
+                    if (readSetting('fromJson.enabled') && this.isPartSelected('serialization'))
                         this.insertFromJson(clazz);
                 }
 
-                if (readSetting('toString.enabled') && this.isPart('toString'))
+                if (readSetting('toString.enabled') && this.isPartSelected('toString'))
                     this.insertToString(clazz);
 
-                if (readSetting('useEquatable') && this.isPart('useEquatable')) {
+                if ((clazz.usesEquatable || readSetting('useEquatable')) && this.isPartSelected('useEquatable')) {
                     this.insertEquatable(clazz);
                 } else {
-                    if (readSetting('equality.enabled') && this.isPart('equality'))
+                    if (readSetting('equality.enabled') && this.isPartSelected('equality'))
                         this.insertEquality(clazz);
-                    if (readSetting('hashCode.enabled') && this.isPart('equality'))
+                    if (readSetting('hashCode.enabled') && this.isPartSelected('equality'))
                         this.insertHash(clazz);
                 }
             }
@@ -827,7 +831,7 @@ class DataClassGenerator {
      * If class already exists and has a constructor with the parameter, reuse that parameter.
      * E.g. when the dev changed the parameter from this.x to this.x = y the generator inserts
      * this.x = y. This way the generator can preserve changes made in the constructor.
-     * @param {ClassProperty | string} prop
+     * @param {ClassField | string} prop
      * @param {{ "name": string; "text": string; "isThis": boolean; }[]} oldProps
      */
     findConstrParameter(prop, oldProps) {
@@ -1045,7 +1049,7 @@ class DataClassGenerator {
     insertToMap(clazz) {
         let props = clazz.properties;
         /**
-         * @param {ClassProperty} prop
+         * @param {ClassField} prop
          */
         function customTypeMapping(prop, name = null, endFlag = ',\n') {
             prop = prop.isCollection ? prop.listType : prop;
@@ -1096,7 +1100,7 @@ class DataClassGenerator {
         const fromJSON = this.fromJSON;
 
         /**
-         * @param {ClassProperty} prop
+         * @param {ClassField} prop
          */
         function customTypeMapping(prop, value = null) {
             prop = prop.isCollection ? prop.listType : prop;
@@ -1171,7 +1175,7 @@ class DataClassGenerator {
 	 * @param {DartClass} clazz
 	 */
     insertToString(clazz) {
-        if (readSetting('useEquatable')) {
+        if (clazz.usesEquatable || readSetting('useEquatable')) {
             if (clazz.superclass != 'Equatable' && !clazz.mixins.includes('EquatableMixin')) {
                 this.insertEquatable(clazz);
             } else {
@@ -1585,7 +1589,7 @@ class DataClassGenerator {
                         }
 
                         if (type != null && name != null) {
-                            const prop = new ClassProperty(type, name, linePos, isFinal, isConst);
+                            const prop = new ClassField(type, name, linePos, isFinal, isConst);
 
                             if (i > 0) {
                                 const prevLine = lines[i - 1];
@@ -1770,7 +1774,7 @@ class JsonReader {
                 }
             }
 
-            clazz.properties.push(new ClassProperty(type, k, ++i));
+            clazz.properties.push(new ClassField(type, k, ++i));
             clazz.classContent += `  final ${type} ${toVarName(k)};\n`;
 
             // If object is JSONArray, break after first item.
@@ -1784,7 +1788,7 @@ class JsonReader {
 	 * @param {string} property
 	 */
     getGeneratedTypeCount(property) {
-        let p = new ClassProperty(property, 'x');
+        let p = new ClassField(property, 'x');
         let i = 0;
         if (!p.isPrimitive) {
             for (let clazz of this.clazzes) {
@@ -1974,7 +1978,7 @@ class DataClassCodeActions {
             if (readSetting('toString.enabled'))
                 codeActions.push(this.createToStringFix());
 
-            if (readSetting('useEquatable'))
+            if (clazz.usesEquatable || readSetting('useEquatable'))
                 codeActions.push(this.createUseEquatableFix());
             else {
                 if (readSettings(['equality.enabled', 'hashCode.enabled']))
@@ -2619,7 +2623,7 @@ module.exports = {
     DataClassGenerator,
     JsonReader,
     ClassPart,
-    ClassProperty,
+    ClassField,
     writeFile,
     getCurrentPath,
     toVarName,

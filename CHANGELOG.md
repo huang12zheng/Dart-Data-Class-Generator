@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.4.0
+
+Added support for enums
+Use factory constructors instead of static methods for json serialization
+
 ### 0.3.17
 
 Added support for value equality on `Lists`, `Maps` and `Sets`.

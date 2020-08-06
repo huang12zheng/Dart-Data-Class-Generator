@@ -10,7 +10,7 @@ Additionally the generator has a couple of useful quickfixes to speed up your de
 
 If this extension is helpful to you, consider giving it a star on [GitHub](https://github.com/bnxm/Dart-Data-Class-Generator) or leave a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator) :heart:
 
-## Create Data Classes Based On Class Properties
+## Create Data Classes Based on Class Properties
 
 ![](assets/gif_from_class.gif)
 
@@ -44,7 +44,7 @@ In order for `enums` to be correctly serialized from and to JSON, please annotat
 final Enum myEnum;
 ```
 
-#### Usage With Equatable
+#### Usage with Equatable
 
 Although using the generator is fast, it still doesn't spare you from all the boiler plate necessary, which can be visually distracting. To reduce the amount of boiler plate needed, the generator works with **Equatable**. Just extend the class with `Equatable` or mix with `EquatableMixin` and the generator will use `Equatable` for value equality. 
 
@@ -52,7 +52,7 @@ Although using the generator is fast, it still doesn't spare you from all the bo
 
 You can also use the setting `dart_data_class_generator.useEquatable`, if you always want to use `Equatable` for value equality.
 
-## Create Data Classes Based On JSON (Beta)
+## Create Data Classes Based on JSON (Beta)
 
 ![](assets/gif_from_json.gif)
 

@@ -307,7 +307,7 @@ class DartClass {
     }
 
     get usesEquatable() {
-        return this.superclass == 'Equatable' || this.mixins.includes('EquatableMixin');
+        return (this.hasSuperclass && this.superclass == 'Equatable') || (this.hasMixins && this.mixins.includes('EquatableMixin'));
     }
 
     get issue() {
@@ -1305,15 +1305,17 @@ class DataClassGenerator {
      * @param {DartClass} clazz
      */
     addEquatableDetails(clazz) {
-        if (clazz.superclass != 'Equatable' && !clazz.mixins.join().includes('EquatableMixin')) {
-            // Do not generate the mixin for class with 'Base' in their
-            // names as Base classes should inherit from Equatable.
-            // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
-            if (clazz.hasSuperclass && !clazz.superclass.includes('Base')) {
-                this.requiresImport('package:equatable/equatable.dart');
+        // Do not generate Equatable for class with 'Base' in their
+        // names as Base classes should inherit from Equatable.
+        // see: https://github.com/BendixMa/Dart-Data-Class-Generator/issues/8
+        if (clazz.hasSuperclass && clazz.superclass.includes('Base')) return;
+
+        this.requiresImport('package:equatable/equatable.dart');
+
+        if (!clazz.usesEquatable) {
+            if (clazz.hasSuperclass) {
                 this.addMixin('EquatableMixin');
-            } else if (!clazz.hasSuperclass) {
-                this.requiresImport('package:equatable/equatable.dart');
+            } else {
                 this.setSuperClass('Equatable');
             }
         }
@@ -2062,8 +2064,7 @@ class DataClassCodeActions {
     }
 
     createUseEquatableFix() {
-        const useEquatableSuper = this.clazz.superclass === 'Equatable';
-        return this.constructQuickFix('useEquatable', `Generate ${useEquatableSuper ? 'Equatable' : 'EquatableMixin'}`);
+        return this.constructQuickFix('useEquatable', `Generate Equatable`);
     }
 
     createRequiredFix() {

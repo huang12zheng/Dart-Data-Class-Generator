@@ -44,6 +44,14 @@ In order for `enums` to be correctly serialized from and to JSON, please annotat
 final Enum myEnum;
 ```
 
+#### Usage with Equatable
+
+Although using the generator is fast, it still doesn't spare you from all the boiler plate necessary, which can be visually distracting. To reduce the amount of boiler plate needed, the generator works with **Equatable**. Just extend the class with `Equatable` or mix with `EquatableMixin` and the generator will use `Equatable` for value equality. 
+
+<img width="512" src="assets/equatable_demo.gif"/>
+
+You can also use the setting `dart_data_class_generator.useEquatable`, if you always want to use `Equatable` for value equality.
+
 ## Create Data Classes Based on JSON (Beta)
 
 ![](assets/gif_from_json.gif)

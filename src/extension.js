@@ -757,7 +757,7 @@ class DataClassGenerator {
                     this.insertToString(clazz);
 
                 if ((clazz.usesEquatable || readSetting('useEquatable')) && this.isPartSelected('useEquatable')) {
-                    this.insertEquatable(clazz);
+                    // this.insertEquatable(clazz); // hint: was been called in [insertToString]
                 } else {
                     if (readSetting('equality.enabled') && this.isPartSelected('equality'))
                         this.insertEquality(clazz);

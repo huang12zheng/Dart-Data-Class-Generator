@@ -9,7 +9,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/bxqm/dart-data-class-generator"
+		"url": "https://github.com/bxqm/dart_data_class_generator"
 	},
 	"icon": "assets/icon.png",
 	"keywords": [

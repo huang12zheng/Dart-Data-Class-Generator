@@ -1,0 +1,222 @@
+{
+	"name": "dart-data-class-generator",
+	"displayName": "Dart Data Class Generator",
+	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
+	"publisher": "bxqm",
+	"version": "0.5.0",
+	"engines": {
+		"vscode": "^1.37.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/bxqm/dart-data-class-generator"
+	},
+	"icon": "assets/icon.png",
+	"keywords": [
+		"dart data class generator",
+		"dart data class",
+		"dart data",
+		"dart",
+		"data class generator"
+	],
+	"author": {
+		"name": "bxqm"
+	},
+	"categories": [
+		"Programming Languages",
+		"Other"
+	],
+	"activationEvents": [
+		"onLanguage:dart",
+		"onCommand:dart_data_class.generate.from_props",
+		"onCommand:dart_data_class.generate.from_json"
+	],
+	"main": "./src/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"title": "Dart Data Class Generator: Generate from class properties",
+				"command": "dart_data_class.generate.from_props"
+			},
+			{
+				"title": "Dart Data Class Generator: Generate from JSON",
+				"command": "dart_data_class.generate.from_json"
+			}
+		],
+		"configuration": [
+			{
+				"title": "Dart Data Class Generator configuration",
+				"properties": {
+					"dart_data_class_generator.quick_fixes": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, enables quick fixes to quickly generate data classes or specific methods only."
+					},
+					"dart_data_class_generator.fromMap.default_values": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, checks if a field is null when deserializing and provides a non-null default value."
+					},
+					"dart_data_class_generator.constructor.default_values": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, generates default values for the constructor."
+					},
+					"dart_data_class_generator.constructor.required": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, generates the @required annotiation to every constructor parameter. Note: The generator wont generate default values for the constructor if enabled!"
+					},
+					"dart_data_class_generator.override.manual": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator."
+					},
+					"dart_data_class_generator.json.seperate": {
+						"type": "string",
+						"enum": [
+							"ask",
+							"seperate",
+							"current_file"
+						],
+						"default": "ask",
+						"description": "Whether to seperate a JSON into multiple files, when the JSON contains nested objects. ask: choose manually every time, seperate: always seperate into multiple files, current_file: always insert all classes into the current file."
+					},
+					"dart_data_class_generator.constructor.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a constructor for a data class."
+					},
+					"dart_data_class_generator.copyWith.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a copyWith function for a data class."
+					},
+					"dart_data_class_generator.toMap.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a toMap function for a data class."
+					},
+					"dart_data_class_generator.fromMap.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a fromMap function for a data class."
+					},
+					"dart_data_class_generator.toJson.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a toJson function for a data class."
+					},
+					"dart_data_class_generator.fromJson.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a fromJson function for a data class."
+					},
+					"dart_data_class_generator.toString.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a toString function for a data class."
+					},
+					"dart_data_class_generator.equality.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates an override of the == (equals) operator for a data class."
+					},
+					"dart_data_class_generator.hashCode.enabled": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": true,
+						"description": "If true, generates a hashCode function for a data class."
+					},
+					"dart_data_class_generator.hashCode.use_jenkins": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, uses the Jenkins SMI hash function instead of bitwise operator from dart:ui."
+					},
+					"dart_data_class_generator.useEquatable": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, uses equatable for value equality and hashcode."
+					}
+				}
+			}
+		]
+	},
+	"scripts": {
+		"test": "node ./test/runTest.js"
+	},
+	"devDependencies": {
+		"@types/glob": "^7.1.1",
+		"@types/mocha": "^5.2.6",
+		"@types/node": "^10.12.21",
+		"@types/vscode": "^1.37.0",
+		"eslint": "^5.13.0",
+		"glob": "^7.1.4",
+		"mocha": "^6.1.4",
+		"typescript": "^3.3.1",
+		"vscode-test": "^1.0.2"
+	}
+}

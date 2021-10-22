@@ -77,12 +77,6 @@ You can also use the setting `dart_data_class_generator.useEquatable`, if you al
 
 The extension includes some additional quick fixes that might be useful to you:
 
-### Annotate parameters with @required
-
-Quickly annotate parameters with @required while importing `package:meta/meta.dart` if there's no import for it already.
-
-<img width="512" src="assets/required_demo.gif"/>
-
 ### Import refactoring
 
 Sort imports alphabetically and bring them into the correct format easily.

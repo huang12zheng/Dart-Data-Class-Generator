@@ -1090,7 +1090,7 @@ class DataClassGenerator {
                 method += `${p.name}?.index,\n`;
             } else if (p.isCollection) {
                 if (p.isMap || p.listType.isPrimitive) {
-                    const mapFlag = p.isSet ? '?.toList()' : '';
+                    const mapFlag = p.isSet ? (p.isNullable ? '?' : '') + '.toList()' : '';
                     method += `${p.name}${mapFlag},\n`;
                 } else {
                     method += `${p.name}?.map((x) => ${customTypeMapping(p, 'x', '')})?.toList(),\n`
@@ -1119,18 +1119,17 @@ class DataClassGenerator {
         function customTypeMapping(prop, value = null) {
             prop = prop.isCollection ? prop.listType : prop;
             const addDefault = withDefaultValues && prop.rawType != 'dynamic';
-            const endFlag = value == null ? ',\n' : '';
             value = value == null ? "map['" + prop.jsonName + "']" : value;
 
             switch (prop.type) {
                 case 'DateTime':
-                    return `DateTime.fromMillisecondsSinceEpoch(${value})${endFlag}`;
+                    return `DateTime.fromMillisecondsSinceEpoch(${value})`;
                 case 'Color':
-                    return `Color(${value})${endFlag}`;
+                    return `Color(${value})`;
                 case 'IconData':
-                    return `IconData(${value}, fontFamily: 'MaterialIcons')${endFlag}`
+                    return `IconData(${value}, fontFamily: 'MaterialIcons')`
                 default:
-                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault && !prop.isNullable ? ` ?? ${prop.defValue}` : ''}${endFlag}`;
+                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault && !prop.isNullable ? ` ?? ${prop.defValue}` : ''}`;
             }
         }
 
@@ -1140,21 +1139,35 @@ class DataClassGenerator {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
 
             const value = `map['${p.jsonName}']`;
+
+            // Add nullable check before serialization
+            if (p.isNullable) {
+                method += value + ' != null ? '
+            }
+
+            // serialization
             if (p.isEnum) {
                 const defaultValue = withDefaultValues ? ' ?? 0' : '';
-                method += `${p.rawType}.values[${value}${defaultValue}],\n`;
+                method += `${p.rawType}.values[${value}${defaultValue}]`;
             } else if (p.isCollection) {
-                const defaultValue = withDefaultValues ? ` ?? const ${p.isList ? '[]' : '{}'}` : '';
+                const defaultValue = withDefaultValues && !p.isNullable ? ` ?? const ${p.isList ? '[]' : '{}'}` : '';
 
                 method += `${p.type}.from(`;
                 if (p.isPrimitive) {
-                    method += `${value}${defaultValue}),\n`;
+                    method += `${value}${defaultValue})`;
                 } else {
-                    method += `${value}?.map((x) => ${customTypeMapping(p, 'x')})${defaultValue}),\n`;
+                    method += `${value}?.map((x) => ${customTypeMapping(p, 'x')})${defaultValue})`;
                 }
             } else {
                 method += customTypeMapping(p);
             }
+
+            // end nullable check if field is nullable
+            if (p.isNullable) {
+                method += " : null";
+            }
+
+            method += ',\n';
 
             const isLast = p.name == props[props.length - 1].name;
             if (isLast) method += '  );\n';

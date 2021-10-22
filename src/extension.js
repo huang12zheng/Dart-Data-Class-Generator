@@ -1069,7 +1069,7 @@ class DataClassGenerator {
 
             const nullSafe = prop.isNullable ? '?' : '';
 
-            switch (prop.rawType) {
+            switch (prop.type) {
                 case 'DateTime':
                     return `${name}${nullSafe}.millisecondsSinceEpoch${endFlag}`;
                 case 'Color':

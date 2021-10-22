@@ -2,8 +2,8 @@
 	"name": "dart-data-class-generator",
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
-	"publisher": "bxqm",
-	"version": "0.5.0",
+	"publisher": "BendixMa",
+	"version": "0.5.1",
 	"engines": {
 		"vscode": "^1.37.0"
 	},

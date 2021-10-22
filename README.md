@@ -1,4 +1,8 @@
-# Dart Data Class Generator (Beta)
+# Dart Data Class Generator
+
+[![GitHub Stars](https://img.shields.io/github/stars/bxqm/dart_data_class_generator.svg?logo=github)](https://github.com/bxqm/dart_data_class_generator)
+[![Downloads](https://img.shields.io/visual-studio-marketplace/d/BendixMa.dart-data-class-generator)](https://github.com/bxqm/dart_data_class_generator)
+
 
 Create dart data classes easily, fast and without writing boilerplate or running code generation.  
 

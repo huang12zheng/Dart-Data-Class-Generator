@@ -1,6 +1,6 @@
 # Change Log
 
-## 0.4.0
+## 0.5.0
 
 Added support for enums
 Use factory constructors instead of static methods for json serialization

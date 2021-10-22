@@ -650,6 +650,10 @@ class ClassField {
         return t == 'String' || t == 'num' || t == 'dynamic' || t == 'bool' || this.isDouble || this.isInt || this.isMap;
     }
 
+    get isPrivate() {
+        return this.name.startsWith('_');
+    }
+
     get defValue() {
         if (this.isList) {
             return 'const []';

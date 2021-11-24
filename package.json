@@ -3,7 +3,7 @@
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
 	"publisher": "BendixMa",
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"engines": {
 		"vscode": "^1.37.0"
 	},
@@ -200,6 +200,15 @@
 						],
 						"default": false,
 						"description": "If true, uses equatable for value equality and hashcode."
+					},
+					"dart_data_class_generator.useEquatableMixin": {
+						"type": "boolean",
+						"enum": [
+							true,
+							false
+						],
+						"default": false,
+						"description": "If true, uses equatableMixin for value equality and hashcode.(dart_data_class_generator.useEquatable must be true)"
 					}
 				}
 			}

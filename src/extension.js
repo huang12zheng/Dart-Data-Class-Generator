@@ -950,7 +950,7 @@ class DataClassGenerator {
             else if (fConstr.includes('})')) endBracket = '})';
             else endBracket = ')';
         } else {
-            if (clazz.isWidget)
+            if (clazz.isWidget || ((clazz.usesEquatable || readSetting('useEquatable')) && this.isPartSelected('useEquatable')))
                 constr += 'const ';
         }
 
@@ -1086,18 +1086,18 @@ class DataClassGenerator {
         }
 
         let method = `Map<String, dynamic> toMap() {\n`;
-        method += '  return {\n';
+        method += '  return <String, dynamic>{\n';
         for (let p of props) {
             method += `    '${p.jsonName}': `;
 
             if (p.isEnum) {
-                method += `${p.name}?.index,\n`;
+                method += `${p.name}.index,\n`;
             } else if (p.isCollection) {
                 if (p.isMap || p.listType.isPrimitive) {
                     const mapFlag = p.isSet ? (p.isNullable ? '?' : '') + '.toList()' : '';
                     method += `${p.name}${mapFlag},\n`;
                 } else {
-                    method += `${p.name}?.map((x) => ${customTypeMapping(p, 'x', '')})?.toList(),\n`
+                    method += `${p.name}.map((x) => ${customTypeMapping(p, 'x', '')}).toList(),\n`
                 }
             } else {
                 method += customTypeMapping(p);
@@ -1114,6 +1114,8 @@ class DataClassGenerator {
      */
     insertFromMap(clazz) {
         let withDefaultValues = readSetting('fromMap.default_values');
+        const leftOfValue = withDefaultValues ? '(': '' ;
+        const rightOfValue = withDefaultValues ? ')': '' ;
         let props = clazz.properties;
         const fromJSON = this.fromJSON;
 
@@ -1123,7 +1125,7 @@ class DataClassGenerator {
         function customTypeMapping(prop, value = null) {
             prop = prop.isCollection ? prop.listType : prop;
             const addDefault = withDefaultValues && prop.rawType != 'dynamic';
-            value = value == null ? "map['" + prop.jsonName + "']" : value;
+            value = value == null ? `${leftOfValue}map['` + prop.jsonName + "']" : value;
 
             switch (prop.type) {
                 case 'DateTime':
@@ -1133,16 +1135,20 @@ class DataClassGenerator {
                 case 'IconData':
                     return `IconData(${value}, fontFamily: 'MaterialIcons')`
                 default:
-                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '?.toDouble()' : prop.isInt ? '?.toInt()' : '') : ''}${addDefault && !prop.isNullable ? ` ?? ${prop.defValue}` : ''}`;
+                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '.toDouble()' : prop.isInt ? '.toInt()' : '') : ''}${addDefault && !prop.isNullable ? ` ?? ${prop.defValue}` : ''}`;
             }
         }
 
         let method = `factory ${clazz.name}.fromMap(Map<String, dynamic> map) {\n`;
         method += '  return ' + clazz.type + '(\n';
+        
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
 
-            const value = `map['${p.jsonName}']`;
+            const value = `${leftOfValue}map['${p.jsonName}']`;
+
+            
+            
 
             // Add nullable check before serialization
             if (p.isNullable) {
@@ -1160,7 +1166,7 @@ class DataClassGenerator {
                 if (p.isPrimitive) {
                     method += `${value}${defaultValue})`;
                 } else {
-                    method += `${value}?.map((x) => ${customTypeMapping(p, 'x')})${defaultValue})`;
+                    method += `${value}.map((x) => ${customTypeMapping(p, 'x')})${defaultValue})`;
                 }
             } else {
                 method += customTypeMapping(p);
@@ -1171,7 +1177,7 @@ class DataClassGenerator {
                 method += " : null";
             }
 
-            method += ',\n';
+            method += `${rightOfValue} as ${p.type},\n`;
 
             const isLast = p.name == props[props.length - 1].name;
             if (isLast) method += '  );\n';
@@ -1197,7 +1203,7 @@ class DataClassGenerator {
     insertFromJson(clazz) {
         this.requiresImport('dart:convert');
 
-        const method = `factory ${clazz.name}.fromJson(String source) => ${clazz.name}.fromMap(json.decode(source));`;
+        const method = `factory ${clazz.name}.fromJson(String source) => ${clazz.name}.fromMap(json.decode(source) as Map<String, dynamic>);`;
         this.appendOrReplace('fromJson', method, `factory ${clazz.name}.fromJson(String source)`, clazz);
     }
 
@@ -1337,7 +1343,7 @@ class DataClassGenerator {
         this.requiresImport('package:equatable/equatable.dart');
 
         if (!clazz.usesEquatable) {
-            if (clazz.hasSuperclass) {
+            if (clazz.hasSuperclass||readSetting('useEquatableMixin')) {
                 this.addMixin('EquatableMixin');
             } else {
                 this.setSuperClass('Equatable');

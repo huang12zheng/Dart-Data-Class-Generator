@@ -1,5 +1,11 @@
 # Change Log
 
+## 0.5.2
+1. Due to the null-aware operator '?.' is unnecessary. replacing the operator '?.' with '.'
+2. add const to constructor if usesEquatable
+3. fix null-safe syntax of Map
+
+
 ## 0.5.0
 
 Added support for enums

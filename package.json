@@ -3,7 +3,7 @@
 	"displayName": "Dart Data Class Generator",
 	"description": "Create dart data classes easily, fast and without writing boilerplate or running code generation.",
 	"publisher": "BendixMa",
-	"version": "0.5.2",
+	"version": "0.5.3",
 	"engines": {
 		"vscode": "^1.37.0"
 	},
@@ -91,6 +91,11 @@
 						],
 						"default": false,
 						"description": "If true, asks, when overriding a class (running the command on an existing class), for every single function/constructor that needs to be changed whether the generator should override the function or not. This allows you to preserve custom changes you made to the function/constructor that would be otherwise overwritten by the generator."
+					},
+					"dart_data_class_generator.ignoreComment.enabled": {
+						"type": "string",
+						"default": "",
+						"description": "Add a analyzer comment for file"
 					},
 					"dart_data_class_generator.json.seperate": {
 						"type": "string",

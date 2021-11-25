@@ -1,5 +1,11 @@
 # Change Log
 
+## 0.5.3
+1. Add a config for `ignore_for_file`
+2. implement List<enum>
+3. do cast convert for fromMap
+4. add a ci template
+
 ## 0.5.2
 1. Due to the null-aware operator '?.' is unnecessary. replacing the operator '?.' with '.'
 2. add const to constructor if usesEquatable

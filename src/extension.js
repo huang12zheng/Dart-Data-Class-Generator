@@ -1091,7 +1091,8 @@ class DataClassGenerator {
             method += `    '${p.jsonName}': `;
 
             if (p.isEnum) {
-                method += `${p.name}.index,\n`;
+                if (p.isCollection) method += `${p.name}.map((x) => x.index).toList(),\n`
+                else method += `${p.name}.index,\n`;
             } else if (p.isCollection) {
                 if (p.isMap || p.listType.isPrimitive) {
                     const mapFlag = p.isSet ? (p.isNullable ? '?' : '') + '.toList()' : '';
@@ -1123,32 +1124,52 @@ class DataClassGenerator {
          * @param {ClassField} prop
          */
         function customTypeMapping(prop, value = null) {
+            const materialConvertValue = prop.isCollection ? "" :" as int";
             prop = prop.isCollection ? prop.listType : prop;
-            const addDefault = withDefaultValues && prop.rawType != 'dynamic';
-            value = value == null ? `${leftOfValue}map['` + prop.jsonName + "']" : value;
+            const isAddDefault = withDefaultValues && prop.rawType != 'dynamic'&& !prop.isNullable &&  prop.isPrimitive;
+            const addLeftDefault = isAddDefault  ? leftOfValue : '';
+            const addRightDefault = isAddDefault ? rightOfValue : '';
+            value = value == null ? `${addLeftDefault}map['` + prop.jsonName + "']" : value;
 
             switch (prop.type) {
                 case 'DateTime':
-                    return `DateTime.fromMillisecondsSinceEpoch(${value})`;
+                    value=withDefaultValues ? `${leftOfValue}${value}??0${rightOfValue}` : value;
+                    return `DateTime.fromMillisecondsSinceEpoch(${value}${materialConvertValue})`;
                 case 'Color':
-                    return `Color(${value})`;
+                    value=withDefaultValues ? `${leftOfValue}${value}??0${rightOfValue}` : value;
+                    return `Color(${value}${materialConvertValue})`;
                 case 'IconData':
-                    return `IconData(${value}, fontFamily: 'MaterialIcons')`
+                    value=withDefaultValues ? `${leftOfValue}${value}??0${rightOfValue}` : value;
+                    return `IconData(${value}${materialConvertValue}, fontFamily: 'MaterialIcons')`
                 default:
-                    return `${!prop.isPrimitive ? prop.type + '.fromMap(' : ''}${value}${!prop.isPrimitive ? ')' : ''}${fromJSON ? (prop.isDouble ? '.toDouble()' : prop.isInt ? '.toInt()' : '') : ''}${addDefault && !prop.isNullable ? ` ?? ${prop.defValue}` : ''}`;
+                    return `${
+                      !prop.isPrimitive ? prop.type + ".fromMap(" : ""
+                    }${value}${!prop.isPrimitive ? " as Map<String,dynamic>)" : ""}${
+                      fromJSON
+                        ? prop.isDouble
+                          ? ".toDouble()"
+                          : prop.isInt
+                          ? ".toInt()"
+                          : ""
+                        : ""
+                    }${
+                        isAddDefault
+                        ? ` ?? ${prop.defValue}${addRightDefault}`
+                        : ""
+                    }`;
             }
         }
 
         let method = `factory ${clazz.name}.fromMap(Map<String, dynamic> map) {\n`;
         method += '  return ' + clazz.type + '(\n';
-        
+
         for (let p of props) {
             method += `    ${clazz.hasNamedConstructor ? `${p.name}: ` : ''}`;
 
-            const value = `${leftOfValue}map['${p.jsonName}']`;
+            const value = `map['${p.jsonName}']`;
 
-            
-            
+
+
 
             // Add nullable check before serialization
             if (p.isNullable) {
@@ -1157,19 +1178,36 @@ class DataClassGenerator {
 
             // serialization
             if (p.isEnum) {
-                const defaultValue = withDefaultValues ? ' ?? 0' : '';
-                method += `${p.rawType}.values[${value}${defaultValue}]`;
+                // List<E>
+                if (p.isCollection) {
+                    const defaultValue = withDefaultValues ? ' ?? <int>[]' : '';
+                    method += `${p.type}.from((${leftOfValue}${value}${defaultValue}${rightOfValue} as List<int>).map<${p.listType.rawType}>((x) => ${p.listType.rawType}.values[x]),)`
+                } else {
+                    const defaultValue = withDefaultValues ? ' ?? 0' : '';
+                    method += `${p.rawType}.values[${leftOfValue}${value}${defaultValue}${rightOfValue} as int]`;
+                }
+
             } else if (p.isCollection) {
-                const defaultValue = withDefaultValues && !p.isNullable ? ` ?? const ${p.isList ? '[]' : '{}'}` : '';
+                const defaultValue =
+                  withDefaultValues && !p.isNullable && p.isPrimitive
+                    ? ` ?? const <${p.listType.rawType}>${
+                        p.isList ? "[]" : "{}"
+                      })`
+                    : "";
 
                 method += `${p.type}.from(`;
+                /// List<String>.from(map['allowed'] ?? const <String>[] as List<String>), 
                 if (p.isPrimitive) {
-                    method += `${value}${defaultValue})`;
+                    method += `(${value}${defaultValue} as ${p.type})`;
                 } else {
-                    method += `${value}.map((x) => ${customTypeMapping(p, 'x')})${defaultValue})`;
+                    method += `(${value} as List<int>).map<${p.listType.rawType}>((x) => ${customTypeMapping(p, 'x')},),${defaultValue})`;
                 }
+            /// (map['name'] ?? '') as String
             } else {
-                method += customTypeMapping(p);
+                if (p.isPrimitive) 
+                    method += customTypeMapping(p)+` as ${p.type}`;
+                else
+                    method += customTypeMapping(p);
             }
 
             // end nullable check if field is nullable
@@ -1177,7 +1215,7 @@ class DataClassGenerator {
                 method += " : null";
             }
 
-            method += `${rightOfValue} as ${p.type},\n`;
+            method += `,\n`;
 
             const isLast = p.name == props[props.length - 1].name;
             if (isLast) method += '  );\n';
@@ -2136,6 +2174,38 @@ function getReplaceEdit(values, imports = null, showLogs = false) {
     const uri = getDoc().uri;
 
     const noChanges = [];
+
+    let ignoreComment = readSetting("ignoreComment.enabled");
+    if (ignoreComment == '') ignoreComment = 'public_member_api_docs, sort_constructors_first';
+    const lines = [];
+    const ignores = [];
+
+    const text = getDocText();
+    text.split("\n").forEach(function (line) {
+      if (line.includes("// ignore_for_file:")) lines.push(line);
+    });
+    let isIncluding;
+    ignoreComment.split(",").forEach((ignore) => {
+      ignore.trim();
+
+      isIncluding = false;
+      lines.forEach((line) => {
+        if (line.includes(ignore)) {
+          isIncluding = true;
+        }
+      });
+      for (let line in lines) {
+      }
+      if (!isIncluding) ignores.push(ignore);
+    });
+    if (ignores.length > 0)
+      edit.insert(
+        uri,
+        new vscode.Position(0, 0),
+        `// ignore_for_file: ${ignores.join(",")}\n`
+      );
+
+
     for (var i = clazzes.length - 1; i >= 0; i--) {
         const clazz = clazzes[i];
 

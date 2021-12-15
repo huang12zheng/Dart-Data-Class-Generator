@@ -1,7 +1,7 @@
 # Dart Data Class Generator
 
 [![GitHub Stars](https://img.shields.io/github/stars/bxqm/dart_data_class_generator.svg?logo=github)](https://github.com/bxqm/dart_data_class_generator)
-[![Downloads](https://img.shields.io/visual-studio-marketplace/d/BendixMa.dart-data-class-generator?color=blue)](https://github.com/bxqm/dart_data_class_generator)
+[![Downloads](https://img.shields.io/visual-studio-marketplace/d/hzgood.dart-data-class-generator?color=blue)](https://github.com/bxqm/dart_data_class_generator)
 
 
 Create dart data classes easily, fast and without writing boilerplate or running code generation.  
@@ -12,7 +12,7 @@ The generator can generate the constructor, copyWith, toMap, fromMap, toJson, fr
 
 Additionally the generator has a couple of useful quickfixes to speed up your development process. See the [Additional Features Section](#additional-features) for more.
 
-If this extension is helpful to you, consider giving it a star on [GitHub](https://github.com/bxqm/Dart-Data-Class-Generator) or leave a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=BendixMa.dart-data-class-generator) :heart:
+If this extension is helpful to you, consider giving it a star on [GitHub](https://github.com/bxqm/Dart-Data-Class-Generator) or leave a review on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=hzgood.dart-data-class-generator) :heart:
 
 ## Create Data Classes Based on Class Properties
 

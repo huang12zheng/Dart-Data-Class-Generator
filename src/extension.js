@@ -1308,12 +1308,11 @@ class DataClassGenerator {
         }
 
         let method = '@override\n';
-        method += 'bool operator ==(Object other) {\n';
+        method += `bool operator ==(covariant ${clazz.type} other) {\n`;
         method += '  if (identical(this, other)) return true;\n';
         if (hasCollection && !isFlutter)
             method += `  final ${collectionEqualityFn} = const DeepCollectionEquality().equals;\n`
         method += '\n';
-        method += '  return other is ' + clazz.type + ' &&\n';
         for (let prop of props) {
             if (prop.isCollection) {
                 if (isFlutter) collectionEqualityFn = prop.isSet ? 'setEquals' : prop.isMap ? 'mapEquals' : 'listEquals';

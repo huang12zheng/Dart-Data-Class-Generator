@@ -1313,6 +1313,7 @@ class DataClassGenerator {
         if (hasCollection && !isFlutter)
             method += `  final ${collectionEqualityFn} = const DeepCollectionEquality().equals;\n`
         method += '\n';
+        method += '  return \n';
         for (let prop of props) {
             if (prop.isCollection) {
                 if (isFlutter) collectionEqualityFn = prop.isSet ? 'setEquals' : prop.isMap ? 'mapEquals' : 'listEquals';

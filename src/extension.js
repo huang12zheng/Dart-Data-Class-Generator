@@ -2175,37 +2175,6 @@ function getReplaceEdit(values, imports = null, showLogs = false) {
 
     const noChanges = [];
 
-    let ignoreComment = readSetting("ignoreComment.enabled");
-    if (ignoreComment == '') ignoreComment = 'public_member_api_docs, sort_constructors_first';
-    const lines = [];
-    const ignores = [];
-
-    const text = getDocText();
-    text.split("\n").forEach(function (line) {
-      if (line.includes("// ignore_for_file:")) lines.push(line);
-    });
-    let isIncluding;
-    ignoreComment.split(",").forEach((ignore) => {
-      ignore.trim();
-
-      isIncluding = false;
-      lines.forEach((line) => {
-        if (line.includes(ignore)) {
-          isIncluding = true;
-        }
-      });
-      for (let line in lines) {
-      }
-      if (!isIncluding) ignores.push(ignore);
-    });
-    if (ignores.length > 0)
-      edit.insert(
-        uri,
-        new vscode.Position(0, 0),
-        `// ignore_for_file: ${ignores.join(",")}\n`
-      );
-
-
     for (var i = clazzes.length - 1; i >= 0; i--) {
         const clazz = clazzes[i];
 
